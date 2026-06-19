@@ -97,6 +97,7 @@ class ScreenCaptureService : Service() {
         var targetWidth = nativeWidth
         var targetHeight = nativeHeight
 
+        // maxRes is now the maximum allowed length of the LONGEST side (e.g. 1920 for 1080p TV)
         val currentMax = maxOf(targetWidth, targetHeight)
         if (currentMax > maxRes) {
             val scale = maxRes.toFloat() / currentMax.toFloat()

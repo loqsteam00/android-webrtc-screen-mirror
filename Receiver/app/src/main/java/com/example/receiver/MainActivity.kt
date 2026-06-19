@@ -83,11 +83,19 @@ class MainActivity : ComponentActivity() {
                                     init(eglBase.eglBaseContext, null)
                                     setEnableHardwareScaler(true)
                                     setMirror(false)
-                                    setScalingType(if (layoutMode == "FILL") RendererCommon.ScalingType.SCALE_ASPECT_FILL else RendererCommon.ScalingType.SCALE_ASPECT_FIT)
+                                    setScalingType(when(layoutMode) {
+                                        "FILL" -> RendererCommon.ScalingType.SCALE_ASPECT_FILL
+                                        "FIT" -> RendererCommon.ScalingType.SCALE_ASPECT_FIT
+                                        else -> RendererCommon.ScalingType.SCALE_ASPECT_BALANCED
+                                    })
                                 }
                             },
                             update = { view ->
-                                view.setScalingType(if (layoutMode == "FILL") RendererCommon.ScalingType.SCALE_ASPECT_FILL else RendererCommon.ScalingType.SCALE_ASPECT_FIT)
+                                view.setScalingType(when(layoutMode) {
+                                    "FILL" -> RendererCommon.ScalingType.SCALE_ASPECT_FILL
+                                    "FIT" -> RendererCommon.ScalingType.SCALE_ASPECT_FIT
+                                    else -> RendererCommon.ScalingType.SCALE_ASPECT_BALANCED
+                                })
                                 videoTrack?.addSink(view)
                             },
                             modifier = Modifier.fillMaxSize()

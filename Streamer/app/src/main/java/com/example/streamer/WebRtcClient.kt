@@ -3,6 +3,7 @@ package com.example.streamer
 import android.content.Context
 import android.content.Intent
 import android.media.projection.MediaProjection
+import android.os.Environment
 import android.util.Log
 import com.google.gson.Gson
 import org.webrtc.*
@@ -113,8 +114,14 @@ class WebRtcClient(
 
     private fun startStatsLogger() {
         statsTimer = Timer()
-        val logFile = File(context.getExternalFilesDir(null), "webrtc_diagnostics.log")
-        logFile.writeText("--- WebRTC Diagnostics Started ---\n")
+        val downloadsDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
+        val timestamp = System.currentTimeMillis()
+        val logFile = File(downloadsDir, "webrtc_diagnostics_$timestamp.log")
+        try {
+            logFile.writeText("--- WebRTC Diagnostics Started ---\n")
+        } catch (e: Exception) {
+            Log.e("WebRtcDiagnostics", "Failed to create log file in Downloads", e)
+        }
         
         var lastBytesSent = 0L
         var lastTime = System.currentTimeMillis()
