@@ -90,7 +90,9 @@ class WebRtcClient(
                 peerConnection?.createAnswer(object : SimpleSdpObserver() {
                     override fun onCreateSuccess(sessionDescription: SessionDescription?) {
                         sessionDescription?.let {
-                            val optimizedSdp = preferH264(it.description)
+                            var optimizedSdp = preferH264(it.description)
+                            // Assuming we want a default high limit for the receiver to accept
+                            optimizedSdp = enforceBitrate(optimizedSdp, 40000) 
                             val newSessionDescription = SessionDescription(it.type, optimizedSdp)
                             peerConnection?.setLocalDescription(SimpleSdpObserver(), newSessionDescription)
                             val answerMsg = SignalingMessage(type = "answer", sdp = optimizedSdp)
@@ -147,6 +149,30 @@ class WebRtcClient(
             }
         }
         lines[mLineIndex] = newMLineParts.joinToString(" ")
+        return lines.joinToString("\r\n")
+    }
+
+    private fun enforceBitrate(sdp: String, bitrateKbps: Int): String {
+        val lines = sdp.split("\r\n").toMutableList()
+        var mLineIndex = -1
+        for (i in lines.indices) {
+            if (lines[i].startsWith("m=video")) {
+                mLineIndex = i
+                break
+            }
+        }
+        if (mLineIndex == -1) return sdp
+
+        // Inject b=AS limit immediately after m=video
+        lines.add(mLineIndex + 1, "b=AS:$bitrateKbps")
+
+        // Inject x-google-start-bitrate to force aggressive ramp-up
+        for (i in lines.indices) {
+            if (lines[i].startsWith("a=fmtp:")) {
+                lines[i] = "${lines[i]};x-google-min-bitrate=1000;x-google-start-bitrate=$bitrateKbps;x-google-max-bitrate=$bitrateKbps"
+            }
+        }
+
         return lines.joinToString("\r\n")
     }
 

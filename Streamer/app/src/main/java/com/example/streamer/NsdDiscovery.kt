@@ -5,7 +5,11 @@ import android.net.nsd.NsdManager
 import android.net.nsd.NsdServiceInfo
 import android.util.Log
 
-class NsdDiscovery(private val context: Context, private val onServiceFound: (String, Int) -> Unit) {
+class NsdDiscovery(
+    private val context: Context,
+    private val onServiceFound: (String, String, Int) -> Unit, // name, ip, port
+    private val onServiceLost: (String) -> Unit // name
+) {
     private var nsdManager: NsdManager? = null
     private var discoveryListener: NsdManager.DiscoveryListener? = null
     private var resolveListener: NsdManager.ResolveListener? = null
@@ -28,6 +32,7 @@ class NsdDiscovery(private val context: Context, private val onServiceFound: (St
 
             override fun onServiceLost(service: NsdServiceInfo) {
                 Log.e("NsdDiscovery", "Service lost: $service")
+                onServiceLost(service.serviceName)
             }
 
             override fun onDiscoveryStopped(serviceType: String) {
@@ -58,7 +63,7 @@ class NsdDiscovery(private val context: Context, private val onServiceFound: (St
                 Log.d("NsdDiscovery", "Resolve Succeeded. $serviceInfo")
                 val hostAddress = serviceInfo.host.hostAddress
                 if (hostAddress != null) {
-                    onServiceFound(hostAddress, serviceInfo.port)
+                    onServiceFound(serviceInfo.serviceName, hostAddress, serviceInfo.port)
                 }
             }
         }
