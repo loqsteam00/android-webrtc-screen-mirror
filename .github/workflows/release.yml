@@ -5,28 +5,22 @@ on:
     tags:
       - 'v*'
 
+permissions:
+  contents: write
+
 jobs:
-  build:
+  build-and-release:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
       - name: Set up JDK 17
-        uses: actions/setup-java@v3
+        uses: actions/setup-java@v4
         with:
           java-version: '17'
           distribution: 'temurin'
-
-      - name: Cache Gradle packages
-        uses: actions/cache@v3
-        with:
-          path: |
-            ~/.gradle/caches
-            ~/.gradle/wrapper
-          key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
-          restore-keys: |
-            ${{ runner.os }}-gradle-
+          cache: gradle
 
       - name: Build Streamer APK
         run: |
@@ -40,39 +34,16 @@ jobs:
           chmod +x gradlew
           ./gradlew assembleDebug
 
-      - name: Upload Artifacts
-        uses: actions/upload-artifact@v3
-        with:
-          name: apks
-          path: |
-            Streamer/app/build/outputs/apk/debug/app-debug.apk
-            Receiver/app/build/outputs/apk/debug/app-debug.apk
-
-  release:
-    needs: build
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Download APK artifacts
-        uses: actions/download-artifact@v3
-        with:
-          name: apks
-          path: apks/
-
       - name: Rename APKs
         run: |
-          mv apks/Streamer/app/build/outputs/apk/debug/app-debug.apk apks/Streamer-app-debug.apk
-          mv apks/Receiver/app/build/outputs/apk/debug/app-debug.apk apks/Receiver-app-debug.apk
+          mv Streamer/app/build/outputs/apk/debug/app-debug.apk Streamer-app-debug.apk
+          mv Receiver/app/build/outputs/apk/debug/app-debug.apk Receiver-app-debug.apk
 
       - name: Create Release
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@v2
         with:
           files: |
-            apks/Streamer-app-debug.apk
-            apks/Receiver-app-debug.apk
+            Streamer-app-debug.apk
+            Receiver-app-debug.apk
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
