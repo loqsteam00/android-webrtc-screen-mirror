@@ -158,43 +158,14 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun startCaptureService(data: Intent) {
-        val displayMetrics = resources.displayMetrics
-        val nativeWidth = displayMetrics.widthPixels
-        val nativeHeight = displayMetrics.heightPixels
-        
-        var targetWidth = nativeWidth
-        var targetHeight = nativeHeight
-
-        if (selectedAspectRatio != "Native") {
-            val ratio = if (selectedAspectRatio == "16:9") 16f / 9f else 4f / 3f
-            
-            // Assume landscape casting
-            if (nativeWidth > nativeHeight) {
-                targetHeight = (nativeWidth / ratio).toInt()
-                if (targetHeight > nativeHeight) {
-                    targetHeight = nativeHeight
-                    targetWidth = (nativeHeight * ratio).toInt()
-                }
-            } else {
-                // Phone is in portrait but we cast as landscape
-                targetHeight = (nativeWidth / ratio).toInt()
-            }
-        }
-
-        // Apply Resolution Quality scaling down
         val maxRes = if (selectedResolution == "1080p") 1080 else 720
-        if (targetHeight > maxRes) {
-            val scale = maxRes.toFloat() / targetHeight.toFloat()
-            targetHeight = maxRes
-            targetWidth = (targetWidth * scale).toInt()
-        }
 
         val serviceIntent = Intent(this, ScreenCaptureService::class.java).apply {
             putExtra("IP", selectedTv?.ip)
             putExtra("PORT", selectedTv?.port)
             putExtra("DATA", data)
-            putExtra("WIDTH", targetWidth)
-            putExtra("HEIGHT", targetHeight)
+            putExtra("ASPECT_RATIO", selectedAspectRatio)
+            putExtra("MAX_RES", maxRes)
             putExtra("FPS", selectedFps)
             putExtra("BITRATE", selectedBitrate.toInt())
         }

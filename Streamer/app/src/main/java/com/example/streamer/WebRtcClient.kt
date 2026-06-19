@@ -79,7 +79,7 @@ class WebRtcClient(
         peerConnection?.senders?.forEach { sender ->
             if (sender.track()?.kind() == "video") {
                 val parameters = sender.parameters
-                parameters.degradationPreference = RtpParameters.DegradationPreference.MAINTAIN_FRAMERATE
+                parameters.degradationPreference = RtpParameters.DegradationPreference.DISABLED
                 parameters.encodings.forEach { encoding ->
                     encoding.maxBitrateBps = bitrateKbps * 1000
                 }
@@ -138,6 +138,14 @@ class WebRtcClient(
         surfaceTextureHelper?.dispose()
         peerConnection?.close()
         peerConnection = null
+    }
+
+    fun changeCaptureFormat(width: Int, height: Int, fps: Int) {
+        try {
+            videoCapturer?.changeCaptureFormat(width, height, fps)
+        } catch (e: Exception) {
+            Log.e("WebRtcClient", "Error changing capture format", e)
+        }
     }
 
     fun close() {
