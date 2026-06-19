@@ -1,0 +1,182 @@
+package com.example.streamer
+
+import android.content.Context
+import android.content.Intent
+import android.media.projection.MediaProjection
+import android.util.Log
+import com.google.gson.Gson
+import org.webrtc.*
+
+class WebRtcClient(
+    private val context: Context,
+    private val signalingClient: SignalingClient,
+    private val mediaProjectionPermissionResultData: Intent
+) {
+    private val gson = Gson()
+    private val eglBase = EglBase.create()
+    private var peerConnectionFactory: PeerConnectionFactory? = null
+    private var peerConnection: PeerConnection? = null
+    private var videoCapturer: VideoCapturer? = null
+    private var surfaceTextureHelper: SurfaceTextureHelper? = null
+
+    init {
+        initWebRTC()
+    }
+
+    private fun initWebRTC() {
+        PeerConnectionFactory.initialize(
+            PeerConnectionFactory.InitializationOptions.builder(context)
+                .setEnableInternalTracer(true)
+                .createInitializationOptions()
+        )
+
+        val options = PeerConnectionFactory.Options()
+        val defaultVideoEncoderFactory = DefaultVideoEncoderFactory(eglBase.eglBaseContext, true, true)
+        val defaultVideoDecoderFactory = DefaultVideoDecoderFactory(eglBase.eglBaseContext)
+
+        peerConnectionFactory = PeerConnectionFactory.builder()
+            .setOptions(options)
+            .setVideoEncoderFactory(defaultVideoEncoderFactory)
+            .setVideoDecoderFactory(defaultVideoDecoderFactory)
+            .createPeerConnectionFactory()
+    }
+
+    fun startStream(width: Int, height: Int, fps: Int, bitrateKbps: Int) {
+        val rtcConfig = PeerConnection.RTCConfiguration(emptyList())
+        rtcConfig.sdpSemantics = PeerConnection.SdpSemantics.UNIFIED_PLAN
+
+        peerConnection = peerConnectionFactory?.createPeerConnection(rtcConfig, object : PeerConnection.Observer {
+            override fun onSignalingChange(state: PeerConnection.SignalingState?) {}
+            override fun onIceConnectionChange(state: PeerConnection.IceConnectionState?) {}
+            override fun onIceConnectionReceivingChange(receiving: Boolean) {}
+            override fun onIceGatheringChange(state: PeerConnection.IceGatheringState?) {}
+            override fun onIceCandidate(candidate: IceCandidate) {
+                val message = SignalingMessage(
+                    type = "candidate",
+                    sdpMid = candidate.sdpMid,
+                    sdpMLineIndex = candidate.sdpMLineIndex,
+                    candidate = candidate.sdp
+                )
+                sendMessage(message)
+            }
+            override fun onIceCandidatesRemoved(candidates: Array<out IceCandidate>?) {}
+            override fun onAddStream(stream: MediaStream?) {}
+            override fun onRemoveStream(stream: MediaStream?) {}
+            override fun onDataChannel(dataChannel: DataChannel?) {}
+            override fun onRenegotiationNeeded() {}
+            override fun onAddTrack(receiver: RtpReceiver?, mediaStreams: Array<out MediaStream>?) {}
+        })
+
+        videoCapturer = createScreenCapturer()
+        surfaceTextureHelper = SurfaceTextureHelper.create("CaptureThread", eglBase.eglBaseContext)
+        val videoSource = peerConnectionFactory?.createVideoSource(false) // false = prioritize framerate over text clarity
+        videoCapturer?.initialize(surfaceTextureHelper, context, videoSource?.capturerObserver)
+        videoCapturer?.startCapture(width, height, fps)
+
+        val videoTrack = peerConnectionFactory?.createVideoTrack("video_track", videoSource)
+        peerConnection?.addTrack(videoTrack)
+
+        peerConnection?.senders?.forEach { sender ->
+            if (sender.track()?.kind() == "video") {
+                val parameters = sender.parameters
+                parameters.degradationPreference = RtpParameters.DegradationPreference.MAINTAIN_FRAMERATE
+                parameters.encodings.forEach { encoding ->
+                    encoding.maxBitrateBps = bitrateKbps * 1000
+                }
+                sender.parameters = parameters
+            }
+        }
+
+        peerConnection?.createOffer(object : SimpleSdpObserver() {
+            override fun onCreateSuccess(sessionDescription: SessionDescription?) {
+                sessionDescription?.let {
+                    val optimizedSdp = preferH264(it.description)
+                    val newSessionDescription = SessionDescription(it.type, optimizedSdp)
+                    peerConnection?.setLocalDescription(SimpleSdpObserver(), newSessionDescription)
+                    val offerMsg = SignalingMessage(type = "offer", sdp = optimizedSdp)
+                    sendMessage(offerMsg)
+                }
+            }
+        }, MediaConstraints())
+    }
+
+    private fun createScreenCapturer(): VideoCapturer? {
+        return ScreenCapturerAndroid(mediaProjectionPermissionResultData, object : MediaProjection.Callback() {
+            override fun onStop() {
+                Log.e("WebRtcClient", "User revoked screen capture permission")
+            }
+        })
+    }
+
+    fun handleSignalingMessage(messageString: String) {
+        val message = gson.fromJson(messageString, SignalingMessage::class.java)
+        
+        when (message.type) {
+            "answer" -> {
+                val sessionDescription = SessionDescription(SessionDescription.Type.ANSWER, message.sdp)
+                peerConnection?.setRemoteDescription(SimpleSdpObserver(), sessionDescription)
+            }
+            "candidate" -> {
+                val candidate = IceCandidate(message.sdpMid, message.sdpMLineIndex ?: 0, message.candidate)
+                peerConnection?.addIceCandidate(candidate)
+            }
+        }
+    }
+
+    private fun sendMessage(message: SignalingMessage) {
+        signalingClient.send(gson.toJson(message))
+    }
+
+    fun stopStream() {
+        try {
+            videoCapturer?.stopCapture()
+        } catch (e: Exception) {
+            Log.e("WebRtcClient", "Error stopping capture", e)
+        }
+        videoCapturer?.dispose()
+        surfaceTextureHelper?.dispose()
+        peerConnection?.close()
+        peerConnection = null
+    }
+
+    fun close() {
+        stopStream()
+        eglBase.release()
+    }
+
+    private fun preferH264(sdp: String): String {
+        val lines = sdp.split("\r\n").toMutableList()
+        var mLineIndex = -1
+        for (i in lines.indices) {
+            if (lines[i].startsWith("m=video")) {
+                mLineIndex = i
+                break
+            }
+        }
+        if (mLineIndex == -1) return sdp
+
+        val mLineParts = lines[mLineIndex].split(" ").toMutableList()
+        val h264PayloadTypes = lines
+            .filter { it.startsWith("a=rtpmap:") && it.contains("H264") }
+            .map { it.substringAfter("a=rtpmap:").substringBefore(" ") }
+
+        if (h264PayloadTypes.isEmpty()) return sdp
+
+        val newMLineParts = mLineParts.take(3).toMutableList()
+        newMLineParts.addAll(h264PayloadTypes)
+        mLineParts.drop(3).forEach { payload ->
+            if (!h264PayloadTypes.contains(payload)) {
+                newMLineParts.add(payload)
+            }
+        }
+        lines[mLineIndex] = newMLineParts.joinToString(" ")
+        return lines.joinToString("\r\n")
+    }
+
+    open class SimpleSdpObserver : SdpObserver {
+        override fun onCreateSuccess(sessionDescription: SessionDescription?) {}
+        override fun onSetSuccess() {}
+        override fun onCreateFailure(s: String?) {}
+        override fun onSetFailure(s: String?) {}
+    }
+}
