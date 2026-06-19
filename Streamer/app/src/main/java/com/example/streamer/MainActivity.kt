@@ -28,8 +28,8 @@ class MainActivity : ComponentActivity() {
     private var isStreaming by mutableStateOf(false)
 
     // Settings
-    private var selectedAspectRatio by mutableStateOf("16:9")
-    private var selectedResolution by mutableStateOf("1080p") // Let's use clean labels, actual width/height determined by Aspect Ratio
+    private var selectedLayoutMode by mutableStateOf("FILL") // FILL = Crop to Fit, FIT = Letterbox
+    private var selectedResolution by mutableStateOf("1080p") 
     private var selectedFps by mutableStateOf(60)
     private var selectedBitrate by mutableStateOf(15000f) // kbps
 
@@ -89,12 +89,11 @@ class MainActivity : ComponentActivity() {
                                 
                                 Spacer(modifier = Modifier.height(24.dp))
                                 
-                                // Aspect Ratio
-                                Text("Aspect Ratio (Crop): $selectedAspectRatio")
+                                // Layout Mode
+                                Text("TV Display Mode: ${if (selectedLayoutMode == "FILL") "Crop to Fit" else "Full Screen (Letterbox)"}")
                                 Row {
-                                    Button(onClick = { selectedAspectRatio = "16:9" }, modifier = Modifier.padding(4.dp)) { Text("16:9 (TV)") }
-                                    Button(onClick = { selectedAspectRatio = "4:3" }, modifier = Modifier.padding(4.dp)) { Text("4:3") }
-                                    Button(onClick = { selectedAspectRatio = "Native" }, modifier = Modifier.padding(4.dp)) { Text("Native") }
+                                    Button(onClick = { selectedLayoutMode = "FILL" }, modifier = Modifier.padding(4.dp)) { Text("Crop to Fit TV (16:9)") }
+                                    Button(onClick = { selectedLayoutMode = "FIT" }, modifier = Modifier.padding(4.dp)) { Text("Full Screen (Letterbox)") }
                                 }
                                 
                                 Spacer(modifier = Modifier.height(16.dp))
@@ -164,7 +163,7 @@ class MainActivity : ComponentActivity() {
             putExtra("IP", selectedTv?.ip)
             putExtra("PORT", selectedTv?.port)
             putExtra("DATA", data)
-            putExtra("ASPECT_RATIO", selectedAspectRatio)
+            putExtra("LAYOUT_MODE", selectedLayoutMode)
             putExtra("MAX_RES", maxRes)
             putExtra("FPS", selectedFps)
             putExtra("BITRATE", selectedBitrate.toInt())

@@ -9,7 +9,8 @@ import org.webrtc.*
 class WebRtcClient(
     private val context: Context,
     private val eglBase: EglBase,
-    private val onVideoTrack: (VideoTrack) -> Unit
+    private val onVideoTrack: (VideoTrack) -> Unit,
+    private val onLayout: (String) -> Unit
 ) {
     private val gson = Gson()
     private var peerConnectionFactory: PeerConnectionFactory? = null
@@ -104,6 +105,9 @@ class WebRtcClient(
             "candidate" -> {
                 val candidate = IceCandidate(message.sdpMid, message.sdpMLineIndex ?: 0, message.candidate)
                 peerConnection?.addIceCandidate(candidate)
+            }
+            "layout" -> {
+                message.candidate?.let { onLayout(it) }
             }
         }
     }

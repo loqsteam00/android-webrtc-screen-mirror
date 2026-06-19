@@ -6,6 +6,9 @@ import android.media.projection.MediaProjection
 import android.util.Log
 import com.google.gson.Gson
 import org.webrtc.*
+import java.io.File
+import java.util.Timer
+import java.util.TimerTask
 
 class WebRtcClient(
     private val context: Context,
@@ -18,6 +21,7 @@ class WebRtcClient(
     private var peerConnection: PeerConnection? = null
     private var videoCapturer: VideoCapturer? = null
     private var surfaceTextureHelper: SurfaceTextureHelper? = null
+    private var statsTimer: Timer? = null
 
     init {
         initWebRTC()
@@ -41,7 +45,7 @@ class WebRtcClient(
             .createPeerConnectionFactory()
     }
 
-    fun startStream(width: Int, height: Int, fps: Int, bitrateKbps: Int) {
+    fun startStream(width: Int, height: Int, fps: Int, bitrateKbps: Int, layoutMode: String) {
         val rtcConfig = PeerConnection.RTCConfiguration(emptyList())
         rtcConfig.sdpSemantics = PeerConnection.SdpSemantics.UNIFIED_PLAN
 
@@ -96,9 +100,60 @@ class WebRtcClient(
                     peerConnection?.setLocalDescription(SimpleSdpObserver(), newSessionDescription)
                     val offerMsg = SignalingMessage(type = "offer", sdp = optimizedSdp)
                     sendMessage(offerMsg)
+                    
+                    // Send layout command right after offer
+                    val layoutMsg = SignalingMessage(type = "layout", candidate = layoutMode)
+                    sendMessage(layoutMsg)
                 }
             }
         }, MediaConstraints())
+        
+        startStatsLogger()
+    }
+
+    private fun startStatsLogger() {
+        statsTimer = Timer()
+        val logFile = File(context.getExternalFilesDir(null), "webrtc_diagnostics.log")
+        logFile.writeText("--- WebRTC Diagnostics Started ---\n")
+        
+        var lastBytesSent = 0L
+        var lastTime = System.currentTimeMillis()
+
+        statsTimer?.scheduleAtFixedRate(object : TimerTask() {
+            override fun run() {
+                peerConnection?.getStats { report ->
+                    val now = System.currentTimeMillis()
+                    val deltaMs = now - lastTime
+                    lastTime = now
+
+                    var currentBytesSent = lastBytesSent
+                    var frameWidth = 0L
+                    var frameHeight = 0L
+                    var fps = 0.0
+
+                    for (stats in report.statsMap.values) {
+                        if (stats.type == "outbound-rtp" && stats.members["kind"] == "video") {
+                            currentBytesSent = (stats.members["bytesSent"] as? java.math.BigInteger)?.toLong() ?: (stats.members["bytesSent"] as? Long) ?: currentBytesSent
+                            frameWidth = (stats.members["frameWidth"] as? Long) ?: 0L
+                            frameHeight = (stats.members["frameHeight"] as? Long) ?: 0L
+                            fps = (stats.members["framesPerSecond"] as? Double) ?: 0.0
+                        }
+                    }
+
+                    val deltaBytes = currentBytesSent - lastBytesSent
+                    val currentKbps = if (deltaMs > 0) (deltaBytes * 8) / deltaMs else 0
+                    lastBytesSent = currentBytesSent
+
+                    val logLine = "Time: $now | Res: ${frameWidth}x${frameHeight} | FPS: $fps | Bitrate: $currentKbps kbps\n"
+                    Log.d("WebRtcDiagnostics", logLine.trim())
+                    try {
+                        logFile.appendText(logLine)
+                    } catch (e: Exception) {
+                        Log.e("WebRtcDiagnostics", "Failed to write log", e)
+                    }
+                }
+            }
+        }, 2000, 2000)
     }
 
     private fun createScreenCapturer(): VideoCapturer? {
@@ -129,6 +184,8 @@ class WebRtcClient(
     }
 
     fun stopStream() {
+        statsTimer?.cancel()
+        statsTimer = null
         try {
             videoCapturer?.stopCapture()
         } catch (e: Exception) {

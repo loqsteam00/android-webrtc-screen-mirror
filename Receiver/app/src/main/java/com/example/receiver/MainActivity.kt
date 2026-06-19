@@ -15,6 +15,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.viewinterop.AndroidView
 import com.example.receiver.theme.ReceiverTheme
 import org.webrtc.EglBase
+import org.webrtc.RendererCommon
 import org.webrtc.SurfaceViewRenderer
 import org.webrtc.VideoTrack
 import java.net.InetAddress
@@ -27,15 +28,18 @@ class MainActivity : ComponentActivity() {
     private lateinit var nsdAdvertiser: NsdAdvertiser
 
     private var videoTrack by mutableStateOf<VideoTrack?>(null)
+    private var layoutMode by mutableStateOf("FILL")
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         
         eglBase = EglBase.create()
         
-        webRtcClient = WebRtcClient(this, eglBase) { track ->
+        webRtcClient = WebRtcClient(this, eglBase, onVideoTrack = { track ->
             videoTrack = track
-        }
+        }, onLayout = { mode ->
+            layoutMode = mode
+        })
 
         signalingServer = LocalSignalingServer(
             port = 8888,
@@ -79,9 +83,11 @@ class MainActivity : ComponentActivity() {
                                     init(eglBase.eglBaseContext, null)
                                     setEnableHardwareScaler(true)
                                     setMirror(false)
+                                    setScalingType(if (layoutMode == "FILL") RendererCommon.ScalingType.SCALE_ASPECT_FILL else RendererCommon.ScalingType.SCALE_ASPECT_FIT)
                                 }
                             },
                             update = { view ->
+                                view.setScalingType(if (layoutMode == "FILL") RendererCommon.ScalingType.SCALE_ASPECT_FILL else RendererCommon.ScalingType.SCALE_ASPECT_FIT)
                                 videoTrack?.addSink(view)
                             },
                             modifier = Modifier.fillMaxSize()
