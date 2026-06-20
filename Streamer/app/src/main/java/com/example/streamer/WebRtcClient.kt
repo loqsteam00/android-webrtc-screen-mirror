@@ -22,6 +22,7 @@ class WebRtcClient(
     private var peerConnection: PeerConnection? = null
     private var videoCapturer: VideoCapturer? = null
     private var surfaceTextureHelper: SurfaceTextureHelper? = null
+    private var videoSource: VideoSource? = null
     private var statsTimer: Timer? = null
 
     init {
@@ -46,7 +47,7 @@ class WebRtcClient(
             .createPeerConnectionFactory()
     }
 
-    fun startStream(width: Int, height: Int, fps: Int, bitrateKbps: Int, layoutMode: String) {
+    fun startStream(capW: Int, capH: Int, outW: Int, outH: Int, fps: Int, bitrateKbps: Int, layoutMode: String) {
         val rtcConfig = PeerConnection.RTCConfiguration(emptyList())
         rtcConfig.sdpSemantics = PeerConnection.SdpSemantics.UNIFIED_PLAN
 
@@ -74,9 +75,10 @@ class WebRtcClient(
 
         videoCapturer = createScreenCapturer()
         surfaceTextureHelper = SurfaceTextureHelper.create("CaptureThread", eglBase.eglBaseContext)
-        val videoSource = peerConnectionFactory?.createVideoSource(false) // false = prioritize framerate over text clarity
+        videoSource = peerConnectionFactory?.createVideoSource(false)
         videoCapturer?.initialize(surfaceTextureHelper, context, videoSource?.capturerObserver)
-        videoCapturer?.startCapture(width, height, fps)
+        videoCapturer?.startCapture(capW, capH, fps)
+        videoSource?.adaptOutputFormat(outW, outH, fps)
 
         val videoTrack = peerConnectionFactory?.createVideoTrack("video_track", videoSource)
         peerConnection?.addTrack(videoTrack)
@@ -209,9 +211,10 @@ class WebRtcClient(
         peerConnection = null
     }
 
-    fun changeCaptureFormat(width: Int, height: Int, fps: Int) {
+    fun changeCaptureFormat(capW: Int, capH: Int, outW: Int, outH: Int, fps: Int) {
         try {
-            videoCapturer?.changeCaptureFormat(width, height, fps)
+            videoCapturer?.changeCaptureFormat(capW, capH, fps)
+            videoSource?.adaptOutputFormat(outW, outH, fps)
         } catch (e: Exception) {
             Log.e("WebRtcClient", "Error changing capture format", e)
         }

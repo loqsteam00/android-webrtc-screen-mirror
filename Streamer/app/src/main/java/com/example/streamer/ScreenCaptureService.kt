@@ -11,8 +11,10 @@ import android.hardware.display.DisplayManager
 import android.os.Build
 import android.os.IBinder
 import android.util.DisplayMetrics
+import android.util.Log
 import android.view.WindowManager
 import androidx.core.app.NotificationCompat
+import kotlinx.coroutines.*
 import java.net.URI
 
 class ScreenCaptureService : Service() {
@@ -21,16 +23,25 @@ class ScreenCaptureService : Service() {
     private var displayManager: DisplayManager? = null
 
     private var baseLayoutMode = "FILL"
-    private var currentWidth = 0
-    private var currentHeight = 0
-    private var currentMaxRes = 1080
+    private var currentCapW = 0
+    private var currentCapH = 0
+    private var currentOutW = 0
+    private var currentOutH = 0
     private var currentFps = 60
+    private var currentMaxRes = 1920 // e.g. 1080p -> longest side 1920
+    private var lastActiveLayout = "FILL"
+
+    private var rotationJob: Job? = null
 
     private val displayListener = object : DisplayManager.DisplayListener {
         override fun onDisplayAdded(displayId: Int) {}
         override fun onDisplayRemoved(displayId: Int) {}
         override fun onDisplayChanged(displayId: Int) {
-            updateDynamicLayout()
+            rotationJob?.cancel()
+            rotationJob = CoroutineScope(Dispatchers.Main).launch {
+                delay(500)
+                updateDynamicLayout()
+            }
         }
     }
 
@@ -70,7 +81,7 @@ class ScreenCaptureService : Service() {
 
         val serverUri = URI("ws://$ip:$port")
         baseLayoutMode = intent.getStringExtra("LAYOUT_MODE") ?: "FILL"
-        currentMaxRes = intent.getIntExtra("MAX_RES", 1080)
+        currentMaxRes = intent.getIntExtra("MAX_RES", 1920)
         currentFps = intent.getIntExtra("FPS", 60)
         val bitrate = intent.getIntExtra("BITRATE", 20000)
         
@@ -81,13 +92,14 @@ class ScreenCaptureService : Service() {
             serverUri = serverUri,
             onConnected = {
                 webRtcClient = WebRtcClient(this, signalingClient!!, data)
-                val (w, h) = calculateDimensions(currentMaxRes)
-                currentWidth = w
-                currentHeight = h
-                
-                // Determine initial layout
                 val initialLayout = getActiveLayoutMode()
-                webRtcClient?.startStream(w, h, currentFps, bitrate, initialLayout)
+                lastActiveLayout = initialLayout
+                val dims = calculateDimensions(currentMaxRes, initialLayout)
+                currentCapW = dims[0]
+                currentCapH = dims[1]
+                currentOutW = dims[2]
+                currentOutH = dims[3]
+                webRtcClient?.startStream(currentCapW, currentCapH, currentOutW, currentOutH, currentFps, bitrate, initialLayout)
             },
             onMessageReceived = { msg ->
                 webRtcClient?.handleSignalingMessage(msg)
@@ -113,30 +125,42 @@ class ScreenCaptureService : Service() {
         }
     }
 
-    private fun calculateDimensions(maxRes: Int): Pair<Int, Int> {
+    private fun calculateDimensions(maxRes: Int, activeLayout: String): IntArray {
         val windowManager = getSystemService(Context.WINDOW_SERVICE) as WindowManager
         val displayMetrics = DisplayMetrics()
         windowManager.defaultDisplay.getRealMetrics(displayMetrics)
         
-        val nativeWidth = displayMetrics.widthPixels
-        val nativeHeight = displayMetrics.heightPixels
-        
-        var targetWidth = nativeWidth
-        var targetHeight = nativeHeight
+        val nativeW = displayMetrics.widthPixels
+        val nativeH = displayMetrics.heightPixels
+        val isLandscape = nativeW > nativeH
 
-        // maxRes is now the maximum allowed length of the LONGEST side (e.g. 1920 for 1080p TV)
-        val currentMax = maxOf(targetWidth, targetHeight)
-        if (currentMax > maxRes) {
-            val scale = maxRes.toFloat() / currentMax.toFloat()
-            targetWidth = (targetWidth * scale).toInt()
-            targetHeight = (targetHeight * scale).toInt()
+        // We want the TV (Landscape 16:9) to always receive exactly what it expects.
+        // For 1080p TV, standard 16:9 is 1920x1080.
+        val outW = maxRes
+        val outH = maxRes * 9 / 16
+
+        if (activeLayout == "FIT") {
+            // We want black bars. We set the VirtualDisplay to exactly 16:9.
+            // Android OS will automatically letterbox the screen within this VirtualDisplay.
+            return intArrayOf(outW, outH, outW, outH)
+        } else {
+            // FILL mode. We want WebRTC to crop.
+            // We set the VirtualDisplay to the phone's native aspect ratio so the OS DOES NOT draw black bars.
+            var capW = nativeW
+            var capH = nativeH
+            val maxCap = maxOf(capW, capH)
+            if (maxCap > maxRes) {
+                val scale = maxRes.toFloat() / maxCap.toFloat()
+                capW = (capW * scale).toInt()
+                capH = (capH * scale).toInt()
+            }
+            // Ensure even
+            if (capW % 2 != 0) capW -= 1
+            if (capH % 2 != 0) capH -= 1
+
+            // Then we tell WebRTC to crop this pure screen into a 16:9 window via adaptOutputFormat.
+            return intArrayOf(capW, capH, outW, outH)
         }
-        
-        // Ensure even dimensions
-        if (targetWidth % 2 != 0) targetWidth -= 1
-        if (targetHeight % 2 != 0) targetHeight -= 1
-
-        return Pair(targetWidth, targetHeight)
     }
 
     private fun getActiveLayoutMode(): String {
@@ -151,17 +175,24 @@ class ScreenCaptureService : Service() {
     }
 
     private fun updateDynamicLayout() {
-        if (currentWidth == 0 || currentHeight == 0) return // Not initialized yet
-
-        val (newW, newH) = calculateDimensions(currentMaxRes)
-        if (newW != currentWidth || newH != currentHeight) {
-            currentWidth = newW
-            currentHeight = newH
-            webRtcClient?.changeCaptureFormat(newW, newH, currentFps)
-        }
+        if (currentCapW == 0 || currentCapH == 0) return // Not initialized yet
 
         val activeLayout = getActiveLayoutMode()
-        webRtcClient?.sendLayout(activeLayout)
+        val dims = calculateDimensions(currentMaxRes, activeLayout)
+        val newCapW = dims[0]
+        val newCapH = dims[1]
+        val newOutW = dims[2]
+        val newOutH = dims[3]
+
+        if (newCapW != currentCapW || newCapH != currentCapH || activeLayout != lastActiveLayout) {
+            currentCapW = newCapW
+            currentCapH = newCapH
+            currentOutW = newOutW
+            currentOutH = newOutH
+            lastActiveLayout = activeLayout
+            webRtcClient?.changeCaptureFormat(newCapW, newCapH, newOutW, newOutH, currentFps)
+            webRtcClient?.sendLayout(activeLayout) // Still send it so Receiver shows the diagnostic text
+        }
     }
 
     override fun onDestroy() {
