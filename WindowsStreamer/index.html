@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <!-- https://developer.mozilla.org/en-US/docs/Web/HTTP/CSP -->
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; connect-src 'self' ws:; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com;">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Windows Streamer</title>
+    <link rel="stylesheet" href="styles.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div class="title-bar">
+        <div class="drag-region"></div>
+        <div class="title-text">Windows Streamer</div>
+    </div>
+    
+    <div class="container">
+        <header class="header">
+            <div class="logo">
+                <svg width="32" height="32" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M2 12C2 7.28595 2 4.92893 3.46447 3.46447C4.92893 2 7.28595 2 12 2C16.714 2 19.0711 2 20.5355 3.46447C22 4.92893 22 7.28595 22 12C22 16.714 22 19.0711 20.5355 20.5355C19.0711 22 16.714 22 12 22C7.28595 22 4.92893 22 3.46447 20.5355C2 19.0711 2 16.714 2 12Z" stroke="url(#paint0_linear)" stroke-width="2"/>
+                    <path d="M12 8L16 12M16 12L12 16M16 12H8" stroke="url(#paint1_linear)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                    <defs>
+                        <linearGradient id="paint0_linear" x1="2" y1="2" x2="22" y2="22" gradientUnits="userSpaceOnUse">
+                            <stop stop-color="#00C2FF" />
+                            <stop offset="1" stop-color="#8A2BE2" />
+                        </linearGradient>
+                        <linearGradient id="paint1_linear" x1="8" y1="8" x2="16" y2="16" gradientUnits="userSpaceOnUse">
+                            <stop stop-color="#00C2FF" />
+                            <stop offset="1" stop-color="#8A2BE2" />
+                        </linearGradient>
+                    </defs>
+                </svg>
+                <h1>CastX Streamer</h1>
+            </div>
+            <div class="status-badge" id="statusBadge">Searching...</div>
+        </header>
+
+        <main class="main-content">
+            <section class="panel list-panel">
+                <h2>Available Receivers</h2>
+                <div class="receiver-list" id="receiverList">
+                    <div class="empty-state">
+                        <div class="spinner"></div>
+                        <p>Looking for TVs on local network...</p>
+                    </div>
+                </div>
+            </section>
+
+            <section class="panel settings-panel">
+                <h2>Stream Settings</h2>
+                
+                <div class="setting-group">
+                    <label>TV Display Mode</label>
+                    <div class="segmented-control">
+                        <input type="radio" id="mode-fill" name="layoutMode" value="FILL" checked>
+                        <label for="mode-fill">Crop to Fit</label>
+                        
+                        <input type="radio" id="mode-hybrid" name="layoutMode" value="HYBRID">
+                        <label for="mode-hybrid">Hybrid</label>
+                        
+                        <input type="radio" id="mode-fit" name="layoutMode" value="FIT">
+                        <label for="mode-fit">Letterbox</label>
+                    </div>
+                </div>
+
+                <div class="setting-group">
+                    <label>Quality Target</label>
+                    <div class="segmented-control">
+                        <input type="radio" id="res-720p" name="resolution" value="720p">
+                        <label for="res-720p">720p</label>
+                        
+                        <input type="radio" id="res-1080p" name="resolution" value="1080p" checked>
+                        <label for="res-1080p">1080p</label>
+                    </div>
+                </div>
+
+                <div class="setting-group">
+                    <label>Framerate</label>
+                    <div class="segmented-control">
+                        <input type="radio" id="fps-30" name="fps" value="30">
+                        <label for="fps-30">30 FPS</label>
+                        
+                        <input type="radio" id="fps-60" name="fps" value="60" checked>
+                        <label for="fps-60">60 FPS</label>
+                    </div>
+                </div>
+
+                <div class="setting-group">
+                    <label>Target Bitrate (kbps) <span id="bitrateValue">15000</span></label>
+                    <input type="range" id="bitrateRange" class="slider" min="1000" max="40000" step="1000" value="15000">
+                </div>
+            </section>
+        </main>
+
+        <footer class="footer">
+            <button id="startBtn" class="primary-btn" disabled>
+                <span class="btn-text">Start Streaming</span>
+                <span class="btn-glow"></span>
+            </button>
+            <button id="stopBtn" class="danger-btn hidden">
+                <span class="btn-text">Stop Streaming</span>
+            </button>
+        </footer>
+    </div>
+
+    <!-- Hidden video element for local stream if needed, usually we don't display it to save resources -->
+    <video id="localVideo" autoplay muted playsinline style="display:none;"></video>
+
+    <script src="renderer.js"></script>
+</body>
+</html>
