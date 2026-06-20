@@ -21,6 +21,10 @@ class ScreenCaptureService : Service() {
     private var displayManager: DisplayManager? = null
 
     private var baseLayoutMode = "FILL"
+    private var currentWidth = 0
+    private var currentHeight = 0
+    private var currentMaxRes = 1080
+    private var currentFps = 60
 
     private val displayListener = object : DisplayManager.DisplayListener {
         override fun onDisplayAdded(displayId: Int) {}
@@ -61,8 +65,8 @@ class ScreenCaptureService : Service() {
 
         val serverUri = URI("ws://$ip:$port")
         baseLayoutMode = intent.getStringExtra("LAYOUT_MODE") ?: "FILL"
-        val maxRes = intent.getIntExtra("MAX_RES", 1080)
-        val targetFps = intent.getIntExtra("FPS", 60)
+        currentMaxRes = intent.getIntExtra("MAX_RES", 1080)
+        currentFps = intent.getIntExtra("FPS", 60)
         val bitrate = intent.getIntExtra("BITRATE", 20000)
         
         displayManager = getSystemService(Context.DISPLAY_SERVICE) as DisplayManager
@@ -72,11 +76,13 @@ class ScreenCaptureService : Service() {
             serverUri = serverUri,
             onConnected = {
                 webRtcClient = WebRtcClient(this, signalingClient!!, data)
-                val (w, h) = calculateDimensions(maxRes)
+                val (w, h) = calculateDimensions(currentMaxRes)
+                currentWidth = w
+                currentHeight = h
                 
                 // Determine initial layout
                 val initialLayout = getActiveLayoutMode()
-                webRtcClient?.startStream(w, h, targetFps, bitrate, initialLayout)
+                webRtcClient?.startStream(w, h, currentFps, bitrate, initialLayout)
             },
             onMessageReceived = { msg ->
                 webRtcClient?.handleSignalingMessage(msg)
@@ -140,6 +146,15 @@ class ScreenCaptureService : Service() {
     }
 
     private fun updateDynamicLayout() {
+        if (currentWidth == 0 || currentHeight == 0) return // Not initialized yet
+
+        val (newW, newH) = calculateDimensions(currentMaxRes)
+        if (newW != currentWidth || newH != currentHeight) {
+            currentWidth = newW
+            currentHeight = newH
+            webRtcClient?.changeCaptureFormat(newW, newH, currentFps)
+        }
+
         if (baseLayoutMode == "HYBRID") {
             val activeLayout = getActiveLayoutMode()
             webRtcClient?.sendLayout(activeLayout)
