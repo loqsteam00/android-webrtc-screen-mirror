@@ -31,7 +31,7 @@ class MainActivity : ComponentActivity() {
     private var selectedLayoutMode by mutableStateOf("FILL") // FILL = Crop to Fit, FIT = Letterbox
     private var selectedResolution by mutableStateOf("1080p") 
     private var selectedFps by mutableStateOf(60)
-    private var selectedBitrate by mutableStateOf(15000f) // kbps
+    private var selectedBitrateRange by mutableStateOf(2000f..15000f) // kbps
     private var enableLogging by mutableStateOf(false)
 
     private val screenCaptureLauncher = registerForActivityResult(
@@ -119,12 +119,12 @@ class MainActivity : ComponentActivity() {
                                 Spacer(modifier = Modifier.height(16.dp))
                                 
                                 // Bitrate
-                                Text("Video Bitrate: ${selectedBitrate.toInt()} kbps")
-                                Slider(
-                                    value = selectedBitrate,
-                                    onValueChange = { selectedBitrate = it },
+                                Text("Target Bitrate Range: ${selectedBitrateRange.start.toInt()} - ${selectedBitrateRange.endInclusive.toInt()} kbps")
+                                RangeSlider(
+                                    value = selectedBitrateRange,
+                                    onValueChange = { selectedBitrateRange = it },
                                     valueRange = 1000f..40000f,
-                                    steps = 39,
+                                    steps = 38,
                                     modifier = Modifier.padding(horizontal = 32.dp)
                                 )
                                 
@@ -160,15 +160,15 @@ class MainActivity : ComponentActivity() {
                                 
                                 Spacer(modifier = Modifier.height(16.dp))
                                 
-                                Text("Live Video Bitrate: ${selectedBitrate.toInt()} kbps")
-                                Slider(
-                                    value = selectedBitrate,
+                                Text("Live Bitrate Range: ${selectedBitrateRange.start.toInt()} - ${selectedBitrateRange.endInclusive.toInt()} kbps")
+                                RangeSlider(
+                                    value = selectedBitrateRange,
                                     onValueChange = { 
-                                        selectedBitrate = it
-                                        sendDynamicBitrate(it.toInt())
+                                        selectedBitrateRange = it
+                                        sendDynamicBitrate(it.start.toInt(), it.endInclusive.toInt())
                                     },
                                     valueRange = 1000f..40000f,
-                                    steps = 39,
+                                    steps = 38,
                                     modifier = Modifier.padding(horizontal = 32.dp)
                                 )
                                 
@@ -201,7 +201,8 @@ class MainActivity : ComponentActivity() {
             putExtra("LAYOUT_MODE", selectedLayoutMode)
             putExtra("MAX_RES", maxRes)
             putExtra("FPS", selectedFps)
-            putExtra("BITRATE", selectedBitrate.toInt())
+            putExtra("MIN_BITRATE", selectedBitrateRange.start.toInt())
+            putExtra("MAX_BITRATE", selectedBitrateRange.endInclusive.toInt())
             putExtra("ENABLE_LOGGING", enableLogging)
         }
         startService(serviceIntent)
@@ -224,12 +225,13 @@ class MainActivity : ComponentActivity() {
         startService(serviceIntent)
     }
 
-    private fun sendDynamicBitrate(kbps: Int) {
-        val serviceIntent = Intent(this, ScreenCaptureService::class.java).apply {
+    private fun sendDynamicBitrate(minKbps: Int, maxKbps: Int) {
+        val intent = Intent(this, ScreenCaptureService::class.java).apply {
             action = "CHANGE_BITRATE"
-            putExtra("BITRATE", kbps)
+            putExtra("MIN_BITRATE", minKbps)
+            putExtra("MAX_BITRATE", maxKbps)
         }
-        startService(serviceIntent)
+        startService(intent)
     }
 
     override fun onDestroy() {

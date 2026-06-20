@@ -49,7 +49,7 @@ class WebRtcClient(
             .createPeerConnectionFactory()
     }
 
-    fun startStream(capW: Int, capH: Int, outW: Int, outH: Int, fps: Int, bitrateKbps: Int, layoutMode: String) {
+    fun startStream(capW: Int, capH: Int, outW: Int, outH: Int, fps: Int, minBitrateKbps: Int, maxBitrateKbps: Int, layoutMode: String) {
         this.currentLayoutMode = layoutMode
         val rtcConfig = PeerConnection.RTCConfiguration(emptyList())
         rtcConfig.sdpSemantics = PeerConnection.SdpSemantics.UNIFIED_PLAN
@@ -91,7 +91,8 @@ class WebRtcClient(
                 val parameters = sender.parameters
                 parameters.degradationPreference = RtpParameters.DegradationPreference.DISABLED
                 parameters.encodings.forEach { encoding ->
-                    encoding.maxBitrateBps = bitrateKbps * 1000
+                    encoding.minBitrateBps = minBitrateKbps * 1000
+                    encoding.maxBitrateBps = maxBitrateKbps * 1000
                 }
                 sender.parameters = parameters
             }
@@ -101,7 +102,7 @@ class WebRtcClient(
             override fun onCreateSuccess(sessionDescription: SessionDescription?) {
                 sessionDescription?.let {
                     var optimizedSdp = preferH264(it.description)
-                    optimizedSdp = enforceBitrate(optimizedSdp, bitrateKbps)
+                    optimizedSdp = enforceBitrate(optimizedSdp, maxBitrateKbps)
                     val newSessionDescription = SessionDescription(it.type, optimizedSdp)
                     peerConnection?.setLocalDescription(SimpleSdpObserver(), newSessionDescription)
                     val offerMsg = SignalingMessage(type = "offer", sdp = optimizedSdp)
@@ -226,12 +227,13 @@ class WebRtcClient(
         }
     }
 
-    fun changeBitrate(kbps: Int) {
+    fun changeBitrate(minKbps: Int, maxKbps: Int) {
         peerConnection?.senders?.forEach { sender ->
             if (sender.track()?.kind() == "video") {
                 val parameters = sender.parameters
                 parameters.encodings.forEach { encoding ->
-                    encoding.maxBitrateBps = kbps * 1000
+                    encoding.minBitrateBps = minKbps * 1000
+                    encoding.maxBitrateBps = maxKbps * 1000
                 }
                 sender.parameters = parameters
             }

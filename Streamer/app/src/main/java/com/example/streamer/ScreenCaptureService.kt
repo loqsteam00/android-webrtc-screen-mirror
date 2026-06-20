@@ -59,8 +59,9 @@ class ScreenCaptureService : Service() {
             }
             return START_NOT_STICKY
         } else if (intent?.action == "CHANGE_BITRATE") {
-            val kbps = intent.getIntExtra("BITRATE", 20000)
-            webRtcClient?.changeBitrate(kbps)
+            val minKbps = intent.getIntExtra("MIN_BITRATE", 2000)
+            val maxKbps = intent.getIntExtra("MAX_BITRATE", 15000)
+            webRtcClient?.changeBitrate(minKbps, maxKbps)
             return START_NOT_STICKY
         }
 
@@ -89,7 +90,8 @@ class ScreenCaptureService : Service() {
         baseLayoutMode = intent.getStringExtra("LAYOUT_MODE") ?: "FILL"
         currentMaxRes = intent.getIntExtra("MAX_RES", 1920)
         currentFps = intent.getIntExtra("FPS", 60)
-        val bitrate = intent.getIntExtra("BITRATE", 20000)
+        val minBitrate = intent.getIntExtra("MIN_BITRATE", 2000)
+        val maxBitrate = intent.getIntExtra("MAX_BITRATE", 15000)
         val enableLogging = intent.getBooleanExtra("ENABLE_LOGGING", false)
         
         displayManager = getSystemService(Context.DISPLAY_SERVICE) as DisplayManager
@@ -106,7 +108,7 @@ class ScreenCaptureService : Service() {
                 currentCapH = dims[1]
                 currentOutW = dims[2]
                 currentOutH = dims[3]
-                webRtcClient?.startStream(currentCapW, currentCapH, currentOutW, currentOutH, currentFps, bitrate, initialLayout)
+                webRtcClient?.startStream(currentCapW, currentCapH, currentOutW, currentOutH, currentFps, minBitrate, maxBitrate, initialLayout)
             },
             onMessageReceived = { msg ->
                 webRtcClient?.handleSignalingMessage(msg)
@@ -153,14 +155,10 @@ class ScreenCaptureService : Service() {
         } else {
             // FILL mode. We want WebRTC to crop.
             // We set the VirtualDisplay to the phone's native aspect ratio so the OS DOES NOT draw black bars.
+            // We capture at full native resolution to ensure WebRTC has enough pixels to crop to 1080p without downscaling.
             var capW = nativeW
             var capH = nativeH
-            val maxCap = maxOf(capW, capH)
-            if (maxCap > maxRes) {
-                val scale = maxRes.toFloat() / maxCap.toFloat()
-                capW = (capW * scale).toInt()
-                capH = (capH * scale).toInt()
-            }
+
             // Ensure even
             if (capW % 2 != 0) capW -= 1
             if (capH % 2 != 0) capH -= 1
