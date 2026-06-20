@@ -14,7 +14,8 @@ import java.util.TimerTask
 class WebRtcClient(
     private val context: Context,
     private val signalingClient: SignalingClient,
-    private val mediaProjectionPermissionResultData: Intent
+    private val mediaProjectionPermissionResultData: Intent,
+    private val enableLogging: Boolean = false
 ) {
     private val gson = Gson()
     private val eglBase = EglBase.create()
@@ -24,6 +25,7 @@ class WebRtcClient(
     private var surfaceTextureHelper: SurfaceTextureHelper? = null
     private var videoSource: VideoSource? = null
     private var statsTimer: Timer? = null
+    private var currentLayoutMode = "UNKNOWN"
 
     init {
         initWebRTC()
@@ -48,6 +50,7 @@ class WebRtcClient(
     }
 
     fun startStream(capW: Int, capH: Int, outW: Int, outH: Int, fps: Int, bitrateKbps: Int, layoutMode: String) {
+        this.currentLayoutMode = layoutMode
         val rtcConfig = PeerConnection.RTCConfiguration(emptyList())
         rtcConfig.sdpSemantics = PeerConnection.SdpSemantics.UNIFIED_PLAN
 
@@ -115,6 +118,8 @@ class WebRtcClient(
     }
 
     private fun startStatsLogger() {
+        if (!enableLogging) return
+
         statsTimer = Timer()
         val downloadsDir = context.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS)
         val timestamp = System.currentTimeMillis()
@@ -153,7 +158,7 @@ class WebRtcClient(
                     val currentKbps = if (deltaMs > 0) (deltaBytes * 8) / deltaMs else 0
                     lastBytesSent = currentBytesSent
 
-                    val logLine = "Time: $now | Res: ${frameWidth}x${frameHeight} | FPS: $fps | Bitrate: $currentKbps kbps\n"
+                    val logLine = "Time: $now | Layout: $currentLayoutMode | Res: ${frameWidth}x${frameHeight} | FPS: $fps | Bitrate: $currentKbps kbps\n"
                     Log.d("WebRtcDiagnostics", logLine.trim())
                     try {
                         logFile.appendText(logLine)
@@ -193,6 +198,7 @@ class WebRtcClient(
     }
 
     fun sendLayout(mode: String) {
+        this.currentLayoutMode = mode
         val layoutMsg = SignalingMessage(type = "layout", candidate = mode)
         sendMessage(layoutMsg)
     }
@@ -217,6 +223,18 @@ class WebRtcClient(
             videoSource?.adaptOutputFormat(outW, outH, fps)
         } catch (e: Exception) {
             Log.e("WebRtcClient", "Error changing capture format", e)
+        }
+    }
+
+    fun changeBitrate(kbps: Int) {
+        peerConnection?.senders?.forEach { sender ->
+            if (sender.track()?.kind() == "video") {
+                val parameters = sender.parameters
+                parameters.encodings.forEach { encoding ->
+                    encoding.maxBitrateBps = kbps * 1000
+                }
+                sender.parameters = parameters
+            }
         }
     }
 

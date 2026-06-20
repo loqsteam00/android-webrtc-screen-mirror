@@ -102,12 +102,6 @@ class MainActivity : ComponentActivity() {
                                 },
                                 modifier = Modifier.fillMaxSize()
                             )
-                            // Diagnostic overlay
-                            Text(
-                                text = "Mode: $layoutMode",
-                                color = androidx.compose.ui.graphics.Color.White,
-                                modifier = Modifier.align(Alignment.TopStart).padding(16.dp)
-                            )
                         }
                     }
                 }

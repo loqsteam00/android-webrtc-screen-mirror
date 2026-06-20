@@ -32,6 +32,7 @@ class MainActivity : ComponentActivity() {
     private var selectedResolution by mutableStateOf("1080p") 
     private var selectedFps by mutableStateOf(60)
     private var selectedBitrate by mutableStateOf(15000f) // kbps
+    private var enableLogging by mutableStateOf(false)
 
     private val screenCaptureLauncher = registerForActivityResult(
         ActivityResultContracts.StartActivityForResult()
@@ -127,6 +128,16 @@ class MainActivity : ComponentActivity() {
                                     modifier = Modifier.padding(horizontal = 32.dp)
                                 )
                                 
+                                Spacer(modifier = Modifier.height(16.dp))
+
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Checkbox(
+                                        checked = enableLogging,
+                                        onCheckedChange = { enableLogging = it }
+                                    )
+                                    Text("Enable Debug Logging")
+                                }
+                                
                                 Spacer(modifier = Modifier.height(32.dp))
                                 
                                 Button(
@@ -146,6 +157,20 @@ class MainActivity : ComponentActivity() {
                                     Button(onClick = { sendDynamicLayout("HYBRID") }, modifier = Modifier.padding(4.dp)) { Text("Hybrid") }
                                     Button(onClick = { sendDynamicLayout("FIT") }, modifier = Modifier.padding(4.dp)) { Text("Letterbox") }
                                 }
+                                
+                                Spacer(modifier = Modifier.height(16.dp))
+                                
+                                Text("Live Video Bitrate: ${selectedBitrate.toInt()} kbps")
+                                Slider(
+                                    value = selectedBitrate,
+                                    onValueChange = { 
+                                        selectedBitrate = it
+                                        sendDynamicBitrate(it.toInt())
+                                    },
+                                    valueRange = 1000f..40000f,
+                                    steps = 39,
+                                    modifier = Modifier.padding(horizontal = 32.dp)
+                                )
                                 
                                 Spacer(modifier = Modifier.height(32.dp))
                                 Button(onClick = { stopScreenCapture() }, modifier = Modifier.fillMaxWidth().height(56.dp), colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)) {
@@ -177,6 +202,7 @@ class MainActivity : ComponentActivity() {
             putExtra("MAX_RES", maxRes)
             putExtra("FPS", selectedFps)
             putExtra("BITRATE", selectedBitrate.toInt())
+            putExtra("ENABLE_LOGGING", enableLogging)
         }
         startService(serviceIntent)
     }
@@ -194,6 +220,14 @@ class MainActivity : ComponentActivity() {
         val serviceIntent = Intent(this, ScreenCaptureService::class.java).apply {
             action = "CHANGE_LAYOUT"
             putExtra("LAYOUT_MODE", mode)
+        }
+        startService(serviceIntent)
+    }
+
+    private fun sendDynamicBitrate(kbps: Int) {
+        val serviceIntent = Intent(this, ScreenCaptureService::class.java).apply {
+            action = "CHANGE_BITRATE"
+            putExtra("BITRATE", kbps)
         }
         startService(serviceIntent)
     }

@@ -51,10 +51,16 @@ class ScreenCaptureService : Service() {
         if (intent?.action == "STOP") {
             stopSelf()
             return START_NOT_STICKY
-        }
-        if (intent?.action == "CHANGE_LAYOUT") {
-            baseLayoutMode = intent.getStringExtra("LAYOUT_MODE") ?: "FILL"
-            updateDynamicLayout()
+        } else if (intent?.action == "CHANGE_LAYOUT") {
+            val mode = intent.getStringExtra("LAYOUT_MODE")
+            if (mode != null) {
+                baseLayoutMode = mode
+                updateDynamicLayout()
+            }
+            return START_NOT_STICKY
+        } else if (intent?.action == "CHANGE_BITRATE") {
+            val kbps = intent.getIntExtra("BITRATE", 20000)
+            webRtcClient?.changeBitrate(kbps)
             return START_NOT_STICKY
         }
 
@@ -84,6 +90,7 @@ class ScreenCaptureService : Service() {
         currentMaxRes = intent.getIntExtra("MAX_RES", 1920)
         currentFps = intent.getIntExtra("FPS", 60)
         val bitrate = intent.getIntExtra("BITRATE", 20000)
+        val enableLogging = intent.getBooleanExtra("ENABLE_LOGGING", false)
         
         displayManager = getSystemService(Context.DISPLAY_SERVICE) as DisplayManager
         displayManager?.registerDisplayListener(displayListener, null)
@@ -91,7 +98,7 @@ class ScreenCaptureService : Service() {
         signalingClient = SignalingClient(
             serverUri = serverUri,
             onConnected = {
-                webRtcClient = WebRtcClient(this, signalingClient!!, data)
+                webRtcClient = WebRtcClient(this, signalingClient!!, data, enableLogging)
                 val initialLayout = getActiveLayoutMode()
                 lastActiveLayout = initialLayout
                 val dims = calculateDimensions(currentMaxRes, initialLayout)
