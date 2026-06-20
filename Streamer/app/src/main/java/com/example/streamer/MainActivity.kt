@@ -90,10 +90,10 @@ class MainActivity : ComponentActivity() {
                                 Spacer(modifier = Modifier.height(24.dp))
                                 
                                 // Layout Mode
-                                Text("TV Display Mode: ${if (selectedLayoutMode == "FILL") "Crop to Fit" else if (selectedLayoutMode == "FIT") "Full Screen (Letterbox)" else "Balanced"}")
+                                Text("TV Display Mode: ${if (selectedLayoutMode == "FILL") "Crop to Fit" else if (selectedLayoutMode == "FIT") "Full Screen (Letterbox)" else "Hybrid"}")
                                 Row {
                                     Button(onClick = { selectedLayoutMode = "FILL" }, modifier = Modifier.padding(4.dp)) { Text("Crop to Fit TV") }
-                                    Button(onClick = { selectedLayoutMode = "BALANCED" }, modifier = Modifier.padding(4.dp)) { Text("Balanced") }
+                                    Button(onClick = { selectedLayoutMode = "HYBRID" }, modifier = Modifier.padding(4.dp)) { Text("Hybrid") }
                                     Button(onClick = { selectedLayoutMode = "FIT" }, modifier = Modifier.padding(4.dp)) { Text("Letterbox") }
                                 }
                                 

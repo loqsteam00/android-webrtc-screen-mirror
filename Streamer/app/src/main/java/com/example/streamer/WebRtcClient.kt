@@ -114,7 +114,7 @@ class WebRtcClient(
 
     private fun startStatsLogger() {
         statsTimer = Timer()
-        val downloadsDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
+        val downloadsDir = context.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS)
         val timestamp = System.currentTimeMillis()
         val logFile = File(downloadsDir, "webrtc_diagnostics_$timestamp.log")
         try {
@@ -188,6 +188,11 @@ class WebRtcClient(
 
     private fun sendMessage(message: SignalingMessage) {
         signalingClient.send(gson.toJson(message))
+    }
+
+    fun sendLayout(mode: String) {
+        val layoutMsg = SignalingMessage(type = "layout", candidate = mode)
+        sendMessage(layoutMsg)
     }
 
     fun stopStream() {
