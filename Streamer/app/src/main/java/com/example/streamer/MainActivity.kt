@@ -138,6 +138,15 @@ class MainActivity : ComponentActivity() {
                                 }
                             } else {
                                 Text("Streaming to ${selectedTv?.name}", style = MaterialTheme.typography.titleMedium)
+                                Spacer(modifier = Modifier.height(16.dp))
+                                
+                                Text("Live Layout Switcher (Instant):")
+                                Row {
+                                    Button(onClick = { sendDynamicLayout("FILL") }, modifier = Modifier.padding(4.dp)) { Text("Crop to Fit") }
+                                    Button(onClick = { sendDynamicLayout("HYBRID") }, modifier = Modifier.padding(4.dp)) { Text("Hybrid") }
+                                    Button(onClick = { sendDynamicLayout("FIT") }, modifier = Modifier.padding(4.dp)) { Text("Letterbox") }
+                                }
+                                
                                 Spacer(modifier = Modifier.height(32.dp))
                                 Button(onClick = { stopScreenCapture() }, modifier = Modifier.fillMaxWidth().height(56.dp), colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)) {
                                     Text("Stop Streaming")
@@ -178,6 +187,15 @@ class MainActivity : ComponentActivity() {
         }
         startService(serviceIntent)
         isStreaming = false
+    }
+
+    private fun sendDynamicLayout(mode: String) {
+        selectedLayoutMode = mode
+        val serviceIntent = Intent(this, ScreenCaptureService::class.java).apply {
+            action = "CHANGE_LAYOUT"
+            putExtra("LAYOUT_MODE", mode)
+        }
+        startService(serviceIntent)
     }
 
     override fun onDestroy() {

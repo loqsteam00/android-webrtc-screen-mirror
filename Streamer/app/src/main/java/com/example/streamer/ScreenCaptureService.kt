@@ -41,6 +41,11 @@ class ScreenCaptureService : Service() {
             stopSelf()
             return START_NOT_STICKY
         }
+        if (intent?.action == "CHANGE_LAYOUT") {
+            baseLayoutMode = intent.getStringExtra("LAYOUT_MODE") ?: "FILL"
+            updateDynamicLayout()
+            return START_NOT_STICKY
+        }
 
         createNotificationChannel()
         val notification = NotificationCompat.Builder(this, "ScreenCaptureChannel")
@@ -155,10 +160,8 @@ class ScreenCaptureService : Service() {
             webRtcClient?.changeCaptureFormat(newW, newH, currentFps)
         }
 
-        if (baseLayoutMode == "HYBRID") {
-            val activeLayout = getActiveLayoutMode()
-            webRtcClient?.sendLayout(activeLayout)
-        }
+        val activeLayout = getActiveLayoutMode()
+        webRtcClient?.sendLayout(activeLayout)
     }
 
     override fun onDestroy() {

@@ -12,6 +12,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import com.example.receiver.theme.ReceiverTheme
 import org.webrtc.EglBase
@@ -77,29 +78,37 @@ class MainActivity : ComponentActivity() {
                             }
                         }
                     } else {
-                        AndroidView(
-                            factory = { context ->
-                                SurfaceViewRenderer(context).apply {
-                                    init(eglBase.eglBaseContext, null)
-                                    setEnableHardwareScaler(true)
-                                    setMirror(false)
-                                    setScalingType(when(layoutMode) {
+                        Box(modifier = Modifier.fillMaxSize()) {
+                            AndroidView(
+                                factory = { context ->
+                                    SurfaceViewRenderer(context).apply {
+                                        init(eglBase.eglBaseContext, null)
+                                        setEnableHardwareScaler(false) // Fix for IPTV box forcing stretch
+                                        setMirror(false)
+                                        setScalingType(when(layoutMode) {
+                                            "FILL" -> RendererCommon.ScalingType.SCALE_ASPECT_FILL
+                                            "FIT" -> RendererCommon.ScalingType.SCALE_ASPECT_FIT
+                                            else -> RendererCommon.ScalingType.SCALE_ASPECT_BALANCED
+                                        })
+                                        videoTrack?.addSink(this) // Only add sink once on creation
+                                    }
+                                },
+                                update = { view ->
+                                    view.setScalingType(when(layoutMode) {
                                         "FILL" -> RendererCommon.ScalingType.SCALE_ASPECT_FILL
                                         "FIT" -> RendererCommon.ScalingType.SCALE_ASPECT_FIT
                                         else -> RendererCommon.ScalingType.SCALE_ASPECT_BALANCED
                                     })
-                                }
-                            },
-                            update = { view ->
-                                view.setScalingType(when(layoutMode) {
-                                    "FILL" -> RendererCommon.ScalingType.SCALE_ASPECT_FILL
-                                    "FIT" -> RendererCommon.ScalingType.SCALE_ASPECT_FIT
-                                    else -> RendererCommon.ScalingType.SCALE_ASPECT_BALANCED
-                                })
-                                videoTrack?.addSink(view)
-                            },
-                            modifier = Modifier.fillMaxSize()
-                        )
+                                },
+                                modifier = Modifier.fillMaxSize()
+                            )
+                            // Diagnostic overlay
+                            Text(
+                                text = "Mode: $layoutMode",
+                                color = androidx.compose.ui.graphics.Color.White,
+                                modifier = Modifier.align(Alignment.TopStart).padding(16.dp)
+                            )
+                        }
                     }
                 }
             }
