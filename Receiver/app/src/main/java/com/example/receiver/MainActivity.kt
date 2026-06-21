@@ -1,5 +1,6 @@
 package com.example.receiver
 
+import android.content.Intent
 import android.os.Bundle
 import android.util.Log
 import androidx.activity.ComponentActivity
@@ -25,8 +26,6 @@ import java.net.NetworkInterface
 class MainActivity : ComponentActivity() {
     private lateinit var eglBase: EglBase
     private lateinit var webRtcClient: WebRtcClient
-    private lateinit var signalingServer: LocalSignalingServer
-    private lateinit var nsdAdvertiser: NsdAdvertiser
 
     private var videoTrack by mutableStateOf<VideoTrack?>(null)
     private var layoutMode by mutableStateOf("FILL")
@@ -42,24 +41,38 @@ class MainActivity : ComponentActivity() {
             layoutMode = mode
         })
 
-        signalingServer = LocalSignalingServer(
-            port = 8888,
-            onClientConnected = { socket ->
-                webRtcClient.setWebSocket(socket)
-            },
-            onClientDisconnected = {
-                videoTrack = null
-                webRtcClient.setWebSocket(null)
-                webRtcClient.resetConnection()
-            },
-            onMessageReceived = { message, _ ->
-                webRtcClient.handleSignalingMessage(message)
-            }
-        )
-        signalingServer.start()
+        // Start the background service
+        val serviceIntent = Intent(this, ReceiverService::class.java)
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+            startForegroundService(serviceIntent)
+        } else {
+            startService(serviceIntent)
+        }
 
-        nsdAdvertiser = NsdAdvertiser(this)
-        nsdAdvertiser.registerService(8888)
+        // Attach to the server
+        Thread {
+            while (ServerManager.server == null) {
+                Thread.sleep(100)
+            }
+            runOnUiThread {
+                ServerManager.server?.let { server ->
+                    server.onMessageReceived = { message, _ ->
+                        runOnUiThread { webRtcClient.handleSignalingMessage(message) }
+                    }
+                    server.onClientDisconnected = {
+                        runOnUiThread {
+                            videoTrack = null
+                            webRtcClient.setWebSocket(null)
+                            webRtcClient.resetConnection()
+                            finishAndRemoveTask()
+                        }
+                    }
+                    server.activeSocket?.let { socket ->
+                        webRtcClient.setWebSocket(socket)
+                    }
+                }
+            }
+        }.start()
 
         val localIp = getLocalIpAddress()
 
@@ -128,8 +141,8 @@ class MainActivity : ComponentActivity() {
 
     override fun onDestroy() {
         super.onDestroy()
-        nsdAdvertiser.unregisterService()
-        signalingServer.stop()
+        ServerManager.server?.onMessageReceived = null
+        ServerManager.server?.onClientDisconnected = null
         webRtcClient.close()
         eglBase.release()
     }

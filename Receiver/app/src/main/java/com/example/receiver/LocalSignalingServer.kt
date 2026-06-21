@@ -7,26 +7,27 @@ import org.java_websocket.handshake.ClientHandshake
 import org.java_websocket.server.WebSocketServer
 import java.net.InetSocketAddress
 
-class LocalSignalingServer(
-    port: Int,
-    private val onMessageReceived: (String, WebSocket) -> Unit,
-    private val onClientConnected: (WebSocket) -> Unit,
-    private val onClientDisconnected: (WebSocket) -> Unit
-) : WebSocketServer(InetSocketAddress(port)) {
+class LocalSignalingServer(port: Int) : WebSocketServer(InetSocketAddress(port)) {
+    var onClientConnected: ((WebSocket) -> Unit)? = null
+    var onClientDisconnected: ((WebSocket) -> Unit)? = null
+    var onMessageReceived: ((String, WebSocket) -> Unit)? = null
+    var activeSocket: WebSocket? = null
 
     override fun onOpen(conn: WebSocket, handshake: ClientHandshake) {
         Log.d("SignalingServer", "New client connected: ${conn.remoteSocketAddress}")
-        onClientConnected(conn)
+        activeSocket = conn
+        onClientConnected?.invoke(conn)
     }
 
     override fun onClose(conn: WebSocket, code: Int, reason: String, remote: Boolean) {
         Log.d("SignalingServer", "Client disconnected: ${conn.remoteSocketAddress}")
-        onClientDisconnected(conn)
+        if (activeSocket == conn) activeSocket = null
+        onClientDisconnected?.invoke(conn)
     }
 
     override fun onMessage(conn: WebSocket, message: String) {
         Log.d("SignalingServer", "Message from client: $message")
-        onMessageReceived(message, conn)
+        onMessageReceived?.invoke(message, conn)
     }
 
     override fun onError(conn: WebSocket?, ex: Exception) {

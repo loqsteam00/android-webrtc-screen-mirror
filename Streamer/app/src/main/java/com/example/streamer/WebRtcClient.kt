@@ -49,7 +49,7 @@ class WebRtcClient(
             .createPeerConnectionFactory()
     }
 
-    fun startStream(capW: Int, capH: Int, outW: Int, outH: Int, fps: Int, minBitrateKbps: Int, maxBitrateKbps: Int, layoutMode: String) {
+    fun startStream(capW: Int, capH: Int, outW: Int, outH: Int, fps: Int, minBitrateKbps: Int, maxBitrateKbps: Int, codec: String, layoutMode: String) {
         this.currentLayoutMode = layoutMode
         val rtcConfig = PeerConnection.RTCConfiguration(emptyList())
         rtcConfig.sdpSemantics = PeerConnection.SdpSemantics.UNIFIED_PLAN
@@ -101,7 +101,7 @@ class WebRtcClient(
         peerConnection?.createOffer(object : SimpleSdpObserver() {
             override fun onCreateSuccess(sessionDescription: SessionDescription?) {
                 sessionDescription?.let {
-                    var optimizedSdp = preferH264(it.description)
+                    var optimizedSdp = preferCodec(it.description, codec)
                     optimizedSdp = enforceBitrate(optimizedSdp, maxBitrateKbps)
                     val newSessionDescription = SessionDescription(it.type, optimizedSdp)
                     peerConnection?.setLocalDescription(SimpleSdpObserver(), newSessionDescription)
@@ -245,7 +245,7 @@ class WebRtcClient(
         eglBase.release()
     }
 
-    private fun preferH264(sdp: String): String {
+    private fun preferCodec(sdp: String, codec: String): String {
         val lines = sdp.split("\r\n").toMutableList()
         var mLineIndex = -1
         for (i in lines.indices) {
@@ -257,16 +257,16 @@ class WebRtcClient(
         if (mLineIndex == -1) return sdp
 
         val mLineParts = lines[mLineIndex].split(" ").toMutableList()
-        val h264PayloadTypes = lines
-            .filter { it.startsWith("a=rtpmap:") && it.contains("H264") }
+        val codecPayloadTypes = lines
+            .filter { it.startsWith("a=rtpmap:") && it.contains(codec, ignoreCase = true) }
             .map { it.substringAfter("a=rtpmap:").substringBefore(" ") }
 
-        if (h264PayloadTypes.isEmpty()) return sdp
+        if (codecPayloadTypes.isEmpty()) return sdp
 
         val newMLineParts = mLineParts.take(3).toMutableList()
-        newMLineParts.addAll(h264PayloadTypes)
+        newMLineParts.addAll(codecPayloadTypes)
         mLineParts.drop(3).forEach { payload ->
-            if (!h264PayloadTypes.contains(payload)) {
+            if (!codecPayloadTypes.contains(payload)) {
                 newMLineParts.add(payload)
             }
         }
@@ -285,13 +285,10 @@ class WebRtcClient(
         }
         if (mLineIndex == -1) return sdp
 
-        // Inject b=AS limit immediately after m=video
-        lines.add(mLineIndex + 1, "b=AS:$bitrateKbps")
-
-        // Inject x-google-start-bitrate to force aggressive ramp-up
+        // Inject x-google-start-bitrate to force aggressive ramp-up, but omit max-bitrate to allow dynamic range
         for (i in lines.indices) {
             if (lines[i].startsWith("a=fmtp:")) {
-                lines[i] = "${lines[i]};x-google-min-bitrate=1000;x-google-start-bitrate=$bitrateKbps;x-google-max-bitrate=$bitrateKbps"
+                lines[i] = "${lines[i]};x-google-min-bitrate=1000;x-google-start-bitrate=$bitrateKbps"
             }
         }
 

@@ -28,7 +28,8 @@ class MainActivity : ComponentActivity() {
     private var isStreaming by mutableStateOf(false)
 
     // Settings
-    private var selectedLayoutMode by mutableStateOf("FILL") // FILL = Crop to Fit, FIT = Letterbox
+    private var selectedLayoutMode by mutableStateOf("HYBRID") // FILL = Crop to Fit, FIT = Letterbox, HYBRID
+    private var selectedCodec by mutableStateOf("H264")
     private var selectedResolution by mutableStateOf("1080p") 
     private var selectedFps by mutableStateOf(60)
     private var selectedBitrateRange by mutableStateOf(2000f..15000f) // kbps
@@ -105,6 +106,17 @@ class MainActivity : ComponentActivity() {
                                 Row {
                                     Button(onClick = { selectedResolution = "720p" }, modifier = Modifier.padding(4.dp)) { Text("720p") }
                                     Button(onClick = { selectedResolution = "1080p" }, modifier = Modifier.padding(4.dp)) { Text("1080p") }
+                                }
+                                
+                                Spacer(modifier = Modifier.height(16.dp))
+
+                                // Codec Selection
+                                Text("Video Codec: $selectedCodec")
+                                Row(horizontalArrangement = Arrangement.Center, modifier = Modifier.fillMaxWidth()) {
+                                    Button(onClick = { selectedCodec = "H264" }, modifier = Modifier.padding(2.dp)) { Text("H264") }
+                                    Button(onClick = { selectedCodec = "VP8" }, modifier = Modifier.padding(2.dp)) { Text("VP8") }
+                                    Button(onClick = { selectedCodec = "VP9" }, modifier = Modifier.padding(2.dp)) { Text("VP9") }
+                                    Button(onClick = { selectedCodec = "AV1" }, modifier = Modifier.padding(2.dp)) { Text("AV1") }
                                 }
                                 
                                 Spacer(modifier = Modifier.height(16.dp))
@@ -201,6 +213,7 @@ class MainActivity : ComponentActivity() {
             putExtra("LAYOUT_MODE", selectedLayoutMode)
             putExtra("MAX_RES", maxRes)
             putExtra("FPS", selectedFps)
+            putExtra("CODEC", selectedCodec)
             putExtra("MIN_BITRATE", selectedBitrateRange.start.toInt())
             putExtra("MAX_BITRATE", selectedBitrateRange.endInclusive.toInt())
             putExtra("ENABLE_LOGGING", enableLogging)

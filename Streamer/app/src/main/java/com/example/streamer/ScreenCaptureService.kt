@@ -90,6 +90,7 @@ class ScreenCaptureService : Service() {
         baseLayoutMode = intent.getStringExtra("LAYOUT_MODE") ?: "FILL"
         currentMaxRes = intent.getIntExtra("MAX_RES", 1920)
         currentFps = intent.getIntExtra("FPS", 60)
+        val selectedCodec = intent.getStringExtra("CODEC") ?: "H264"
         val minBitrate = intent.getIntExtra("MIN_BITRATE", 2000)
         val maxBitrate = intent.getIntExtra("MAX_BITRATE", 15000)
         val enableLogging = intent.getBooleanExtra("ENABLE_LOGGING", false)
@@ -108,7 +109,7 @@ class ScreenCaptureService : Service() {
                 currentCapH = dims[1]
                 currentOutW = dims[2]
                 currentOutH = dims[3]
-                webRtcClient?.startStream(currentCapW, currentCapH, currentOutW, currentOutH, currentFps, minBitrate, maxBitrate, initialLayout)
+                webRtcClient?.startStream(currentCapW, currentCapH, currentOutW, currentOutH, currentFps, minBitrate, maxBitrate, selectedCodec, initialLayout)
             },
             onMessageReceived = { msg ->
                 webRtcClient?.handleSignalingMessage(msg)
