@@ -4,9 +4,14 @@ import android.content.Intent
 import android.os.Bundle
 import android.util.Log
 import androidx.activity.ComponentActivity
+import android.content.Context
+import android.net.Uri
+import android.provider.Settings
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.*
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -29,6 +34,14 @@ class MainActivity : ComponentActivity() {
 
     private var videoTrack by mutableStateOf<VideoTrack?>(null)
     private var layoutMode by mutableStateOf("FILL")
+    private var autoLaunchEnabled by mutableStateOf(false)
+
+    private val overlayPermissionLauncher = registerForActivityResult(
+        ActivityResultContracts.StartActivityForResult()
+    ) {
+        autoLaunchEnabled = Settings.canDrawOverlays(this)
+        getSharedPreferences("receiver_prefs", Context.MODE_PRIVATE).edit().putBoolean("autoLaunch", autoLaunchEnabled).apply()
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -40,6 +53,13 @@ class MainActivity : ComponentActivity() {
         }, onLayout = { mode ->
             layoutMode = mode
         })
+
+        val prefs = getSharedPreferences("receiver_prefs", Context.MODE_PRIVATE)
+        autoLaunchEnabled = prefs.getBoolean("autoLaunch", false)
+        if (autoLaunchEnabled && !Settings.canDrawOverlays(this)) {
+            autoLaunchEnabled = false
+            prefs.edit().putBoolean("autoLaunch", false).apply()
+        }
 
         // Start the background service
         val serviceIntent = Intent(this, ReceiverService::class.java)
@@ -88,6 +108,28 @@ class MainActivity : ComponentActivity() {
                             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                                 Text("Waiting for connection...")
                                 Text("IP: $localIp:8888")
+                                
+                                Spacer(modifier = Modifier.height(32.dp))
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Checkbox(
+                                        checked = autoLaunchEnabled,
+                                        onCheckedChange = { checked ->
+                                            if (checked) {
+                                                if (!Settings.canDrawOverlays(this@MainActivity)) {
+                                                    val intent = Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:$packageName"))
+                                                    overlayPermissionLauncher.launch(intent)
+                                                } else {
+                                                    autoLaunchEnabled = true
+                                                    getSharedPreferences("receiver_prefs", Context.MODE_PRIVATE).edit().putBoolean("autoLaunch", true).apply()
+                                                }
+                                            } else {
+                                                autoLaunchEnabled = false
+                                                getSharedPreferences("receiver_prefs", Context.MODE_PRIVATE).edit().putBoolean("autoLaunch", false).apply()
+                                            }
+                                        }
+                                    )
+                                    Text("Allow Background Auto-Launch")
+                                }
                             }
                         }
                     } else {

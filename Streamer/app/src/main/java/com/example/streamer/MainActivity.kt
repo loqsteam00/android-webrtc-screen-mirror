@@ -60,13 +60,34 @@ class MainActivity : ComponentActivity() {
         })
         nsdDiscovery.startDiscovery()
 
+        val prefs = getSharedPreferences("streamer_prefs", Context.MODE_PRIVATE)
+        selectedCodec = prefs.getString("selectedCodec", "H264") ?: "H264"
+        selectedResolution = prefs.getString("selectedResolution", "1080p") ?: "1080p"
+
         enableEdgeToEdge()
         setContent {
+            var showSettings by remember { mutableStateOf(false) }
+            var tvToRename by remember { mutableStateOf<ReceiverDevice?>(null) }
+            var newTvName by remember { mutableStateOf("") }
+
             StreamerTheme {
-                Surface(
-                    modifier = Modifier.fillMaxSize(),
-                    color = MaterialTheme.colorScheme.background
-                ) {
+                Scaffold(
+                    topBar = {
+                        @OptIn(ExperimentalMaterial3Api::class)
+                        TopAppBar(
+                            title = { Text("Screen Mirroring") },
+                            actions = {
+                                IconButton(onClick = { showSettings = true }) {
+                                    Text("⚙️", style = MaterialTheme.typography.titleLarge)
+                                }
+                            }
+                        )
+                    }
+                ) { innerPadding ->
+                    Surface(
+                        modifier = Modifier.fillMaxSize().padding(innerPadding),
+                        color = MaterialTheme.colorScheme.background
+                    ) {
                     Column(
                         modifier = Modifier.fillMaxSize().padding(16.dp),
                         horizontalAlignment = Alignment.CenterHorizontally,
@@ -78,14 +99,23 @@ class MainActivity : ComponentActivity() {
                                 Spacer(modifier = Modifier.height(8.dp))
                                 
                                 discoveredTvs.forEach { tv ->
-                                    Button(
-                                        onClick = { selectedTv = tv },
-                                        colors = ButtonDefaults.buttonColors(
-                                            containerColor = if (selectedTv == tv) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.secondary
-                                        ),
-                                        modifier = Modifier.padding(4.dp).fillMaxWidth()
-                                    ) {
-                                        Text("${tv.name} (${tv.ip})")
+                                    val customName = prefs.getString("tv_name_${tv.ip}", tv.name) ?: tv.name
+                                    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+                                        Button(
+                                            onClick = { selectedTv = tv },
+                                            colors = ButtonDefaults.buttonColors(
+                                                containerColor = if (selectedTv == tv) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.secondary
+                                            ),
+                                            modifier = Modifier.weight(1f).padding(4.dp)
+                                        ) {
+                                            Text("$customName (${tv.ip})")
+                                        }
+                                        IconButton(onClick = {
+                                            newTvName = customName
+                                            tvToRename = tv
+                                        }) {
+                                            Text("✏️", style = MaterialTheme.typography.titleLarge)
+                                        }
                                     }
                                 }
                                 
@@ -100,27 +130,6 @@ class MainActivity : ComponentActivity() {
                                 }
                                 
                                 Spacer(modifier = Modifier.height(16.dp))
-
-                                // Resolution Quality
-                                Text("Quality Target: $selectedResolution")
-                                Row {
-                                    Button(onClick = { selectedResolution = "720p" }, modifier = Modifier.padding(4.dp)) { Text("720p") }
-                                    Button(onClick = { selectedResolution = "1080p" }, modifier = Modifier.padding(4.dp)) { Text("1080p") }
-                                }
-                                
-                                Spacer(modifier = Modifier.height(16.dp))
-
-                                // Codec Selection
-                                Text("Video Codec: $selectedCodec")
-                                Row(horizontalArrangement = Arrangement.Center, modifier = Modifier.fillMaxWidth()) {
-                                    Button(onClick = { selectedCodec = "H264" }, modifier = Modifier.padding(2.dp)) { Text("H264") }
-                                    Button(onClick = { selectedCodec = "VP8" }, modifier = Modifier.padding(2.dp)) { Text("VP8") }
-                                    Button(onClick = { selectedCodec = "VP9" }, modifier = Modifier.padding(2.dp)) { Text("VP9") }
-                                    Button(onClick = { selectedCodec = "AV1" }, modifier = Modifier.padding(2.dp)) { Text("AV1") }
-                                }
-                                
-                                Spacer(modifier = Modifier.height(16.dp))
-                                
                                 // FPS
                                 Text("Framerate: $selectedFps FPS")
                                 Row {
@@ -194,10 +203,61 @@ class MainActivity : ComponentActivity() {
                             CircularProgressIndicator(modifier = Modifier.padding(16.dp))
                         }
                     }
+
+                    if (showSettings) {
+                        AlertDialog(
+                            onDismissRequest = { showSettings = false },
+                            title = { Text("Stream Settings") },
+                            text = {
+                                Column {
+                                    Text("Resolution Quality")
+                                    Row {
+                                        Button(onClick = { selectedResolution = "720p"; prefs.edit().putString("selectedResolution", "720p").apply() }, modifier = Modifier.padding(4.dp)) { Text("720p") }
+                                        Button(onClick = { selectedResolution = "1080p"; prefs.edit().putString("selectedResolution", "1080p").apply() }, modifier = Modifier.padding(4.dp)) { Text("1080p") }
+                                    }
+                                    Spacer(modifier = Modifier.height(16.dp))
+                                    Text("Video Codec")
+                                    Row {
+                                        Button(onClick = { selectedCodec = "H264"; prefs.edit().putString("selectedCodec", "H264").apply() }, modifier = Modifier.padding(2.dp)) { Text("H264") }
+                                        Button(onClick = { selectedCodec = "VP8"; prefs.edit().putString("selectedCodec", "VP8").apply() }, modifier = Modifier.padding(2.dp)) { Text("VP8") }
+                                        Button(onClick = { selectedCodec = "VP9"; prefs.edit().putString("selectedCodec", "VP9").apply() }, modifier = Modifier.padding(2.dp)) { Text("VP9") }
+                                        Button(onClick = { selectedCodec = "AV1"; prefs.edit().putString("selectedCodec", "AV1").apply() }, modifier = Modifier.padding(2.dp)) { Text("AV1") }
+                                    }
+                                }
+                            },
+                            confirmButton = {
+                                TextButton(onClick = { showSettings = false }) { Text("Close") }
+                            }
+                        )
+                    }
+
+                    if (tvToRename != null) {
+                        AlertDialog(
+                            onDismissRequest = { tvToRename = null },
+                            title = { Text("Rename Receiver") },
+                            text = {
+                                TextField(
+                                    value = newTvName,
+                                    onValueChange = { newTvName = it },
+                                    label = { Text("Custom Name") }
+                                )
+                            },
+                            confirmButton = {
+                                TextButton(onClick = {
+                                    prefs.edit().putString("tv_name_${tvToRename!!.ip}", newTvName).apply()
+                                    tvToRename = null
+                                }) { Text("Save") }
+                            },
+                            dismissButton = {
+                                TextButton(onClick = { tvToRename = null }) { Text("Cancel") }
+                            }
+                        )
+                    }
                 }
             }
         }
     }
+}
 
     private fun startScreenCapture() {
         screenCaptureLauncher.launch(mediaProjectionManager.createScreenCaptureIntent())

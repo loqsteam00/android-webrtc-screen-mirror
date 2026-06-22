@@ -228,16 +228,19 @@ class WebRtcClient(
     }
 
     fun changeBitrate(minKbps: Int, maxKbps: Int) {
-        peerConnection?.senders?.forEach { sender ->
-            if (sender.track()?.kind() == "video") {
-                val parameters = sender.parameters
-                parameters.encodings.forEach { encoding ->
-                    encoding.minBitrateBps = minKbps * 1000
-                    encoding.maxBitrateBps = maxKbps * 1000
+        val currentCodec = this.currentLayoutMode ?: "H264" // Wait, layoutMode is stored, but codec is not stored in WebRtcClient.
+        // Let's just create an offer. The observer will use the last stored values or just enforce the new bitrate on the existing SDP.
+        peerConnection?.createOffer(object : SimpleSdpObserver() {
+            override fun onCreateSuccess(sessionDescription: SessionDescription?) {
+                sessionDescription?.let {
+                    var optimizedSdp = it.description
+                    optimizedSdp = enforceBitrate(optimizedSdp, maxKbps)
+                    val newSessionDescription = SessionDescription(it.type, optimizedSdp)
+                    peerConnection?.setLocalDescription(SimpleSdpObserver(), newSessionDescription)
+                    signalingClient.send(gson.toJson(SignalingMessage(type = "offer", sdp = newSessionDescription.description)))
                 }
-                sender.parameters = parameters
             }
-        }
+        }, MediaConstraints())
     }
 
     fun close() {
@@ -285,10 +288,13 @@ class WebRtcClient(
         }
         if (mLineIndex == -1) return sdp
 
-        // Inject x-google-start-bitrate to force aggressive ramp-up, but omit max-bitrate to allow dynamic range
+        // Inject b=AS limit immediately after m=video to strictly limit the hardware encoder
+        lines.add(mLineIndex + 1, "b=AS:$bitrateKbps")
+
+        // Inject x-google-start-bitrate to force aggressive ramp-up
         for (i in lines.indices) {
             if (lines[i].startsWith("a=fmtp:")) {
-                lines[i] = "${lines[i]};x-google-min-bitrate=1000;x-google-start-bitrate=$bitrateKbps"
+                lines[i] = "${lines[i]};x-google-min-bitrate=1000;x-google-start-bitrate=$bitrateKbps;x-google-max-bitrate=$bitrateKbps"
             }
         }
 

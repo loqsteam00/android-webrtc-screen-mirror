@@ -37,11 +37,17 @@ class ReceiverService : Service() {
 
         val server = LocalSignalingServer(8888)
         server.onClientConnected = { socket ->
-            Log.d("ReceiverService", "Client connected! Launching MainActivity.")
-            val intent = Intent(this, MainActivity::class.java).apply {
-                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            val prefs = getSharedPreferences("receiver_prefs", Context.MODE_PRIVATE)
+            val autoLaunch = prefs.getBoolean("autoLaunch", false)
+            if (autoLaunch) {
+                Log.d("ReceiverService", "Client connected! Launching MainActivity.")
+                val intent = Intent(this, MainActivity::class.java).apply {
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                }
+                startActivity(intent)
+            } else {
+                Log.d("ReceiverService", "Client connected! Auto-launch is disabled.")
             }
-            startActivity(intent)
         }
         server.onClientDisconnected = {
             Log.d("ReceiverService", "Client disconnected.")
