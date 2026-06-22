@@ -18,7 +18,7 @@ class LocalSignalingServer(port: Int) : WebSocketServer(InetSocketAddress(port))
             if (value != null) {
                 // Flush queue
                 while (messageQueue.isNotEmpty()) {
-                    val msg = messageQueue.removeFirst()
+                    val msg = messageQueue.removeAt(0)
                     msg.socket?.let { value(msg.content, it) }
                 }
             }
