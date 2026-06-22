@@ -35,6 +35,8 @@ class MainActivity : ComponentActivity() {
     private var videoTrack by mutableStateOf<VideoTrack?>(null)
     private var layoutMode by mutableStateOf("FILL")
     private var autoLaunchEnabled by mutableStateOf(false)
+    private var pipEnabled by mutableStateOf(false)
+    private var wakeEnabled by mutableStateOf(false)
 
     private val overlayPermissionLauncher = registerForActivityResult(
         ActivityResultContracts.StartActivityForResult()
@@ -56,9 +58,19 @@ class MainActivity : ComponentActivity() {
 
         val prefs = getSharedPreferences("receiver_prefs", Context.MODE_PRIVATE)
         autoLaunchEnabled = prefs.getBoolean("autoLaunch", false)
+        pipEnabled = prefs.getBoolean("pipEnabled", false)
+        wakeEnabled = prefs.getBoolean("wakeEnabled", false)
         if (autoLaunchEnabled && !Settings.canDrawOverlays(this)) {
             autoLaunchEnabled = false
             prefs.edit().putBoolean("autoLaunch", false).apply()
+        }
+
+        if (wakeEnabled) {
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O_MR1) {
+                setShowWhenLocked(true)
+                setTurnScreenOn(true)
+            }
+            window.addFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON or android.view.WindowManager.LayoutParams.FLAG_TURN_SCREEN_ON)
         }
 
         // Start the background service
@@ -84,7 +96,8 @@ class MainActivity : ComponentActivity() {
                             videoTrack = null
                             webRtcClient.setWebSocket(null)
                             webRtcClient.resetConnection()
-                            finishAndRemoveTask()
+                            finish()
+                            moveTaskToBack(true)
                         }
                     }
                     server.activeSocket?.let { socket ->
@@ -129,6 +142,31 @@ class MainActivity : ComponentActivity() {
                                         }
                                     )
                                     Text("Allow Background Auto-Launch")
+                                }
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Checkbox(
+                                        checked = pipEnabled,
+                                        onCheckedChange = { checked ->
+                                            pipEnabled = checked
+                                            getSharedPreferences("receiver_prefs", Context.MODE_PRIVATE).edit().putBoolean("pipEnabled", checked).apply()
+                                        }
+                                    )
+                                    Text("Auto Picture-in-Picture on Leave")
+                                }
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Checkbox(
+                                        checked = wakeEnabled,
+                                        onCheckedChange = { checked ->
+                                            wakeEnabled = checked
+                                            getSharedPreferences("receiver_prefs", Context.MODE_PRIVATE).edit().putBoolean("wakeEnabled", checked).apply()
+                                            if (checked) {
+                                                window.addFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON or android.view.WindowManager.LayoutParams.FLAG_TURN_SCREEN_ON)
+                                            } else {
+                                                window.clearFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON or android.view.WindowManager.LayoutParams.FLAG_TURN_SCREEN_ON)
+                                            }
+                                        }
+                                    )
+                                    Text("Wake TV From Sleep on Stream")
                                 }
                             }
                         }
@@ -179,6 +217,16 @@ class MainActivity : ComponentActivity() {
             Log.e("MainActivity", "Error getting IP", ex)
         }
         return "Unknown"
+    }
+
+    override fun onUserLeaveHint() {
+        super.onUserLeaveHint()
+        if (pipEnabled && videoTrack != null) {
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+                val params = android.app.PictureInPictureParams.Builder().build()
+                enterPictureInPictureMode(params)
+            }
+        }
     }
 
     override fun onDestroy() {

@@ -52,7 +52,6 @@ class ReceiverService : Service() {
         server.onClientDisconnected = {
             Log.d("ReceiverService", "Client disconnected.")
         }
-        server.onMessageReceived = { _, _ -> }
         server.start()
         ServerManager.server = server
 

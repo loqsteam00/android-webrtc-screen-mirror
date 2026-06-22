@@ -151,15 +151,7 @@ class MainActivity : ComponentActivity() {
                                 
                                 Spacer(modifier = Modifier.height(16.dp))
 
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Checkbox(
-                                        checked = enableLogging,
-                                        onCheckedChange = { enableLogging = it }
-                                    )
-                                    Text("Enable Debug Logging")
-                                }
-                                
-                                Spacer(modifier = Modifier.height(32.dp))
+
                                 
                                 Button(
                                     onClick = { startScreenCapture() }, 
@@ -222,6 +214,14 @@ class MainActivity : ComponentActivity() {
                                         Button(onClick = { selectedCodec = "VP8"; prefs.edit().putString("selectedCodec", "VP8").apply() }, modifier = Modifier.padding(2.dp)) { Text("VP8") }
                                         Button(onClick = { selectedCodec = "VP9"; prefs.edit().putString("selectedCodec", "VP9").apply() }, modifier = Modifier.padding(2.dp)) { Text("VP9") }
                                         Button(onClick = { selectedCodec = "AV1"; prefs.edit().putString("selectedCodec", "AV1").apply() }, modifier = Modifier.padding(2.dp)) { Text("AV1") }
+                                    }
+                                    Spacer(modifier = Modifier.height(16.dp))
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Checkbox(
+                                            checked = enableLogging,
+                                            onCheckedChange = { enableLogging = it }
+                                        )
+                                        Text("Enable Debug Logging")
                                     }
                                 }
                             },

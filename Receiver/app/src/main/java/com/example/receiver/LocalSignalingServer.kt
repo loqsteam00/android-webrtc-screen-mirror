@@ -10,8 +10,24 @@ import java.net.InetSocketAddress
 class LocalSignalingServer(port: Int) : WebSocketServer(InetSocketAddress(port)) {
     var onClientConnected: ((WebSocket) -> Unit)? = null
     var onClientDisconnected: ((WebSocket) -> Unit)? = null
-    var onMessageReceived: ((String, WebSocket) -> Unit)? = null
+    private var _onMessageReceived: ((String, WebSocket) -> Unit)? = null
+    var onMessageReceived: ((String, WebSocket) -> Unit)?
+        get() = _onMessageReceived
+        set(value) {
+            _onMessageReceived = value
+            if (value != null) {
+                // Flush queue
+                while (messageQueue.isNotEmpty()) {
+                    val msg = messageQueue.removeFirst()
+                    msg.socket?.let { value(msg.content, it) }
+                }
+            }
+        }
+        
     var activeSocket: WebSocket? = null
+    private val messageQueue = mutableListOf<QueuedMessage>()
+    
+    private data class QueuedMessage(val content: String, val socket: WebSocket?)
 
     override fun onOpen(conn: WebSocket, handshake: ClientHandshake) {
         Log.d("SignalingServer", "New client connected: ${conn.remoteSocketAddress}")
@@ -27,7 +43,12 @@ class LocalSignalingServer(port: Int) : WebSocketServer(InetSocketAddress(port))
 
     override fun onMessage(conn: WebSocket, message: String) {
         Log.d("SignalingServer", "Message from client: $message")
-        onMessageReceived?.invoke(message, conn)
+        if (_onMessageReceived != null) {
+            _onMessageReceived?.invoke(message, conn)
+        } else {
+            Log.d("SignalingServer", "No listener attached, queuing message.")
+            messageQueue.add(QueuedMessage(message, conn))
+        }
     }
 
     override fun onError(conn: WebSocket?, ex: Exception) {
