@@ -63,6 +63,7 @@ class MainActivity : ComponentActivity() {
         val prefs = getSharedPreferences("streamer_prefs", Context.MODE_PRIVATE)
         selectedCodec = prefs.getString("selectedCodec", "H264") ?: "H264"
         selectedResolution = prefs.getString("selectedResolution", "1080p") ?: "1080p"
+        enableLogging = true
 
         enableEdgeToEdge()
         setContent {
@@ -219,7 +220,10 @@ class MainActivity : ComponentActivity() {
                                     Row(verticalAlignment = Alignment.CenterVertically) {
                                         Checkbox(
                                             checked = enableLogging,
-                                            onCheckedChange = { enableLogging = it }
+                                            onCheckedChange = { 
+                                                enableLogging = it
+                                                prefs.edit().putBoolean("enableLogging", it).apply()
+                                            }
                                         )
                                         Text("Enable Debug Logging")
                                     }

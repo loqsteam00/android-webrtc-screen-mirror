@@ -88,6 +88,16 @@ class MainActivity : ComponentActivity() {
             }
             runOnUiThread {
                 ServerManager.server?.let { server ->
+                    server.activeSocket?.let { socket ->
+                        webRtcClient.setWebSocket(socket)
+                    }
+                    server.onActivityClientConnected = {
+                        runOnUiThread {
+                            server.activeSocket?.let { socket ->
+                                webRtcClient.setWebSocket(socket)
+                            }
+                        }
+                    }
                     server.onMessageReceived = { message, _ ->
                         runOnUiThread { webRtcClient.handleSignalingMessage(message) }
                     }
@@ -97,11 +107,7 @@ class MainActivity : ComponentActivity() {
                             webRtcClient.setWebSocket(null)
                             webRtcClient.resetConnection()
                             finish()
-                            moveTaskToBack(true)
                         }
-                    }
-                    server.activeSocket?.let { socket ->
-                        webRtcClient.setWebSocket(socket)
                     }
                 }
             }
@@ -171,7 +177,7 @@ class MainActivity : ComponentActivity() {
                             }
                         }
                     } else {
-                        Box(modifier = Modifier.fillMaxSize()) {
+                        Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
                             AndroidView(
                                 factory = { context ->
                                     SurfaceViewRenderer(context).apply {
@@ -192,8 +198,9 @@ class MainActivity : ComponentActivity() {
                                         "FIT" -> RendererCommon.ScalingType.SCALE_ASPECT_FIT
                                         else -> RendererCommon.ScalingType.SCALE_ASPECT_BALANCED
                                     })
+                                    view.requestLayout()
                                 },
-                                modifier = Modifier.fillMaxSize()
+                                // Do NOT use fillMaxSize() here. We want SurfaceViewRenderer to measure itself based on the scaling type!
                             )
                         }
                     }

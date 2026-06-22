@@ -51,6 +51,9 @@ class WebRtcClient(
 
     fun startStream(capW: Int, capH: Int, outW: Int, outH: Int, fps: Int, minBitrateKbps: Int, maxBitrateKbps: Int, codec: String, layoutMode: String) {
         this.currentLayoutMode = layoutMode
+        // Tell the TV the layout mode right away
+        sendLayout(layoutMode)
+        
         val rtcConfig = PeerConnection.RTCConfiguration(emptyList())
         rtcConfig.sdpSemantics = PeerConnection.SdpSemantics.UNIFIED_PLAN
 
@@ -228,23 +231,22 @@ class WebRtcClient(
     }
 
     fun changeBitrate(minKbps: Int, maxKbps: Int) {
-        val currentCodec = this.currentLayoutMode ?: "H264" // Wait, layoutMode is stored, but codec is not stored in WebRtcClient.
-        // Let's just create an offer. The observer will use the last stored values or just enforce the new bitrate on the existing SDP.
-        peerConnection?.createOffer(object : SimpleSdpObserver() {
-            override fun onCreateSuccess(sessionDescription: SessionDescription?) {
-                sessionDescription?.let {
-                    var optimizedSdp = it.description
-                    optimizedSdp = enforceBitrate(optimizedSdp, maxKbps)
-                    val newSessionDescription = SessionDescription(it.type, optimizedSdp)
-                    peerConnection?.setLocalDescription(SimpleSdpObserver(), newSessionDescription)
-                    signalingClient.send(gson.toJson(SignalingMessage(type = "offer", sdp = newSessionDescription.description)))
+        peerConnection?.senders?.forEach { sender ->
+            if (sender.track()?.kind() == "video") {
+                val parameters = sender.parameters
+                parameters.encodings.forEach { encoding ->
+                    encoding.minBitrateBps = minKbps * 1000
+                    encoding.maxBitrateBps = maxKbps * 1000
                 }
+                sender.parameters = parameters
             }
-        }, MediaConstraints())
+        }
     }
 
     fun close() {
         stopStream()
+        peerConnectionFactory?.dispose()
+        peerConnectionFactory = null
         eglBase.release()
     }
 

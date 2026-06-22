@@ -9,6 +9,7 @@ import java.net.InetSocketAddress
 
 class LocalSignalingServer(port: Int) : WebSocketServer(InetSocketAddress(port)) {
     var onClientConnected: ((WebSocket) -> Unit)? = null
+    var onActivityClientConnected: ((WebSocket) -> Unit)? = null
     var onClientDisconnected: ((WebSocket) -> Unit)? = null
     private var _onMessageReceived: ((String, WebSocket) -> Unit)? = null
     var onMessageReceived: ((String, WebSocket) -> Unit)?
@@ -33,6 +34,7 @@ class LocalSignalingServer(port: Int) : WebSocketServer(InetSocketAddress(port))
         Log.d("SignalingServer", "New client connected: ${conn.remoteSocketAddress}")
         activeSocket = conn
         onClientConnected?.invoke(conn)
+        onActivityClientConnected?.invoke(conn)
     }
 
     override fun onClose(conn: WebSocket, code: Int, reason: String, remote: Boolean) {

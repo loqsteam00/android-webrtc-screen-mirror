@@ -140,33 +140,33 @@ class ScreenCaptureService : Service() {
         val displayMetrics = DisplayMetrics()
         windowManager.defaultDisplay.getRealMetrics(displayMetrics)
         
-        val nativeW = displayMetrics.widthPixels
-        val nativeH = displayMetrics.heightPixels
-        val isLandscape = nativeW > nativeH
+        var capW = displayMetrics.widthPixels
+        var capH = displayMetrics.heightPixels
+        val isLandscape = capW > capH
 
-        // We want the TV (Landscape 16:9) to always receive exactly what it expects.
-        // For 1080p TV, standard 16:9 is 1920x1080.
-        val outW = maxRes
-        val outH = maxRes * 9 / 16
+        // Ensure capture dimensions are multiples of 16
+        if (capW % 16 != 0) capW -= (capW % 16)
+        if (capH % 16 != 0) capH -= (capH % 16)
 
-        if (activeLayout == "FIT") {
-            // We want black bars. We set the VirtualDisplay to exactly 16:9.
-            // Android OS will automatically letterbox the screen within this VirtualDisplay.
-            return intArrayOf(outW, outH, outW, outH)
+        val outW: Int
+        val outH: Int
+
+        // Scale down output resolution to maxRes on the longest side
+        if (isLandscape) {
+            outW = maxRes
+            outH = (maxRes * capH) / capW
         } else {
-            // FILL mode. We want WebRTC to crop.
-            // We set the VirtualDisplay to the phone's native aspect ratio so the OS DOES NOT draw black bars.
-            // We capture at full native resolution to ensure WebRTC has enough pixels to crop to 1080p without downscaling.
-            var capW = nativeW
-            var capH = nativeH
-
-            // Ensure even
-            if (capW % 2 != 0) capW -= 1
-            if (capH % 2 != 0) capH -= 1
-
-            // Then we tell WebRTC to crop this pure screen into a 16:9 window via adaptOutputFormat.
-            return intArrayOf(capW, capH, outW, outH)
+            outH = maxRes
+            outW = (maxRes * capW) / capH
         }
+        
+        // Ensure output is a multiple of 16 for hardware encoder compatibility
+        var finalOutW = outW
+        var finalOutH = outH
+        if (finalOutW % 16 != 0) finalOutW -= (finalOutW % 16)
+        if (finalOutH % 16 != 0) finalOutH -= (finalOutH % 16)
+
+        return intArrayOf(capW, capH, finalOutW, finalOutH)
     }
 
     private fun getActiveLayoutMode(): String {
